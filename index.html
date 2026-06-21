@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Scrub &amp; Squish — Detailing Manager</title>
+<style>
+  :root {
+    --bg: #000000;
+    --panel: #1c1c1e;
+    --panel-2: #2c2c2e;
+    --border: #38383a;
+    --text: #ffffff;
+    --muted: #8e8e93;
+    --accent: #0a84ff;
+    --accent-soft: rgba(10,132,255,.16);
+    --green: #30d158;
+    --green-soft: rgba(48,209,88,.16);
+    --amber: #ff9f0a;
+    --amber-soft: rgba(255,159,10,.16);
+    --red: #ff453a;
+    --red-soft: rgba(255,69,58,.16);
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 92px;
+    max-width: 600px; margin: 0 auto;
+  }
+  h1 { font-size: 34px; font-weight: 800; letter-spacing: -1px; }
+  h2 { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+  h3 { font-size: 18px; font-weight: 700; }
+  .muted { color: var(--muted); }
+  .green { color: var(--green); }
+
+  main { padding: 14px 18px 24px; }
+  .view { display: none; }
+  .view.active { display: block; animation: fade .2s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px);} to {opacity:1; transform:none;} }
+
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin: 8px 0 18px; }
+  .top .right { display: flex; gap: 8px; align-items: center; }
+
+  /* Month selector */
+  .month-sel { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 17px; margin-bottom: 18px; }
+  .month-sel select {
+    background: none; border: none; color: var(--accent); font-size: 17px; font-weight: 700;
+    font-family: inherit; cursor: pointer; padding: 2px 4px;
+  }
+
+  /* Stat cards */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .stat {
+    background: var(--panel); border-radius: var(--radius); padding: 16px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .stat .badge { width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; font-size: 22px; flex-shrink: 0; }
+  .badge.blue { background: var(--accent-soft); } .badge.green { background: var(--green-soft); } .badge.amber { background: var(--amber-soft); } .badge.red { background: var(--red-soft); }
+  .stat .num { font-size: 26px; font-weight: 800; letter-spacing: -.5px; line-height: 1.1; }
+  .stat .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600; }
+
+  .section-title { font-size: 20px; font-weight: 800; margin: 8px 0 12px; letter-spacing: -.4px; }
+
+  /* Cards / lists */
+  .card { background: var(--panel); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .list-item {
+    background: var(--panel); border-radius: var(--radius); padding: 15px 16px; margin-bottom: 10px;
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer;
+  }
+  .list-item:active { background: var(--panel-2); }
+  .li-title { font-size: 17px; font-weight: 600; }
+  .li-sub { font-size: 14px; color: var(--muted); margin-top: 1px; }
+  .li-right { text-align: right; flex-shrink: 0; }
+  .empty {
+    background: var(--panel); border-radius: var(--radius); padding: 44px 16px; text-align: center;
+    color: var(--muted); border: 1px solid var(--border);
+  }
+  .empty .ic { font-size: 34px; opacity: .5; display: block; margin-bottom: 10px; }
+
+  /* Pills */
+  .pill { display: inline-block; padding: 3px 11px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .pill.scheduled { background: var(--accent-soft); color: #4aa8ff; }
+  .pill.completed { background: var(--green-soft); color: var(--green); }
+  .pill.cancelled { background: var(--red-soft); color: var(--red); }
+
+  /* Buttons */
+  button { font-family: inherit; }
+  .btn { background: var(--accent); color: #fff; border: none; padding: 13px 18px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; width: 100%; }
+  .btn:active { opacity: .85; }
+  .btn.ghost { background: var(--panel-2); color: var(--text); }
+  .btn.green { background: var(--green); }
+  .btn.danger { background: var(--red-soft); color: var(--red); }
+  .btn.sm { width: auto; padding: 9px 16px; font-size: 14px; }
+  .btn.block-big { background: var(--accent); font-size: 18px; padding: 16px; border-radius: 14px; }
+  .addbtn { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; border: none; font-size: 20px; cursor: pointer; display: grid; place-items: center; line-height: 1; }
+  .iconbtn { background: var(--panel-2); border: none; color: var(--text); width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  .link { color: var(--accent); font-weight: 600; font-size: 16px; background: none; border: none; cursor: pointer; }
+
+  /* Search */
+  .search { width: 100%; background: var(--panel); border: none; color: var(--text); padding: 12px 16px; border-radius: 12px; font-size: 16px; margin-bottom: 14px; }
+  .search::placeholder { color: var(--muted); }
+
+  /* Calendar */
+  .cal-head { display: flex; justify-content: space-between; align-items: center; margin: 8px 0 14px; }
+  .cal-head h2 { font-size: 22px; }
+  .cal-nav { background: none; border: none; color: var(--accent); font-size: 26px; cursor: pointer; padding: 0 12px; }
+  .booked-bar { display: flex; background: var(--panel); border-radius: 14px; margin-bottom: 14px; }
+  .booked-bar > div { flex: 1; padding: 14px; text-align: center; }
+  .booked-bar > div + div { border-left: 1px solid var(--border); }
+  .booked-bar .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600; }
+  .booked-bar .v { font-size: 22px; font-weight: 800; margin-top: 3px; }
+  .cal { background: var(--panel); border-radius: 14px; padding: 6px; }
+  .cal-dow { display: grid; grid-template-columns: repeat(7,1fr); text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; padding: 6px 0; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .cal-cell { aspect-ratio: .72; border-radius: 9px; padding: 6px; font-size: 14px; cursor: pointer; position: relative; border: 1.5px solid transparent; }
+  .cal-cell.dim { color: #48484a; }
+  .cal-cell.today { border-color: var(--accent); }
+  .cal-cell .dot { position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%); display: flex; gap: 2px; }
+  .cal-cell .dot i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); display: block; }
+  .cal-cell .dot i.done { background: var(--green); }
+  .cal-cell:active { background: var(--panel-2); }
+
+  /* Goals */
+  .goal-card { background: var(--panel); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; }
+  .bar { height: 12px; background: var(--panel-2); border-radius: 8px; overflow: hidden; margin: 12px 0 8px; }
+  .bar > span { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 8px; transition: width .4s; }
+
+  /* Bottom nav */
+  nav.tabbar {
+    position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+    width: calc(100% - 24px); max-width: 576px;
+    background: rgba(28,28,30,.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--border); border-radius: 26px;
+    display: flex; justify-content: space-around; padding: 8px 4px; z-index: 50;
+  }
+  nav.tabbar button {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; padding: 4px 8px; border-radius: 14px; flex: 1;
+  }
+  nav.tabbar button .ti { font-size: 20px; }
+  nav.tabbar button.active { color: var(--accent); }
+
+  /* Modal / sheet */
+  .sheet-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 100; }
+  .sheet-bg.open { display: block; }
+  .sheet {
+    position: fixed; left: 50%; transform: translateX(-50%) translateY(100%);
+    bottom: 0; width: 100%; max-width: 600px; max-height: 92vh; overflow-y: auto;
+    background: #1c1c1e; border-radius: 22px 22px 0 0; padding: 10px 18px 28px;
+    transition: transform .28s cubic-bezier(.2,.8,.2,1);
+  }
+  .sheet-bg.open .sheet { transform: translateX(-50%) translateY(0); }
+  .grabber { width: 40px; height: 5px; background: #48484a; border-radius: 3px; margin: 6px auto 14px; }
+  .sheet h3 { margin-bottom: 6px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+  input, select, textarea {
+    width: 100%; background: var(--panel-2); border: 1px solid transparent; color: var(--text);
+    padding: 12px 14px; border-radius: 11px; font-size: 16px; font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  .frow { display: flex; gap: 10px; } .frow > div { flex: 1; }
+  .sheet-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .chk { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+  .chk input { width: auto; }
+  .detail-row { padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .detail-row .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; font-weight: 600; }
+  .detail-row .v { font-size: 17px; margin-top: 3px; }
+  .seg { display: flex; background: var(--panel-2); border-radius: 11px; padding: 3px; margin: 14px 0; }
+  .seg button { flex: 1; background: none; border: none; color: var(--muted); padding: 9px; border-radius: 9px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .seg button.active { background: var(--accent); color: #fff; }
+  .addon-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 20px; padding: 7px 13px; margin: 4px 6px 0 0; font-size: 14px; cursor: pointer; }
+  .addon-chip.on { background: var(--accent-soft); border-color: var(--accent); color: #4aa8ff; }
+
+  /* Schedule header extras */
+  .sched-top { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 4px; }
+  .pillbtn { background: var(--panel-2); border: 1px solid var(--border); color: var(--accent); border-radius: 20px; padding: 9px 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .bell { position: relative; }
+  .bell .badge-count { position: absolute; top: -4px; right: -4px; background: var(--red); color: #fff; font-size: 10px; font-weight: 800; min-width: 18px; height: 18px; border-radius: 9px; display: grid; place-items: center; padding: 0 4px; }
+
+  /* Option cards (booking) */
+  .opt { background: var(--panel-2); border: 2px solid transparent; border-radius: 13px; padding: 15px; margin-top: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+  .opt.on { border-color: var(--accent); background: var(--accent-soft); }
+  .opt .t { font-size: 16px; font-weight: 600; }
+  .opt .s { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .opt .p { font-size: 16px; font-weight: 700; }
+  .step-dots { display: flex; gap: 6px; justify-content: center; margin: 4px 0 14px; }
+  .step-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--panel-2); }
+  .step-dots i.on { background: var(--accent); }
+  .total-bar { display: flex; justify-content: space-between; align-items: center; background: var(--panel-2); border-radius: 12px; padding: 14px 16px; margin: 16px 0; }
+  .total-bar .tt { font-size: 20px; font-weight: 800; }
+
+  /* Public booking page (the shareable link) */
+  body.public main { padding-bottom: 24px; }
+  body.public nav.tabbar { display: none; }
+  body.public .view:not(#publicView) { display: none !important; }
+  #publicView { display: none; }
+  body.public #publicView { display: block; }
+  .biz-hero { text-align: center; padding: 26px 16px 10px; }
+  .biz-hero .logo { width: 72px; height: 72px; border-radius: 18px; background: linear-gradient(135deg, var(--accent), #6c4cff); display: grid; place-items: center; margin: 0 auto 14px; font-size: 30px; }
+  .biz-hero h1 { font-size: 28px; }
+  .biz-hero .tag { color: var(--muted); margin-top: 4px; }
+  .biz-hero .meta { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+  /* Receipt */
+  #receipt { display: none; }
+  #receipt.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.6); padding: 20px; z-index: 200; overflow-y: auto; }
+  .receipt-doc { background: #fff; color: #111; border-radius: 12px; padding: 24px; max-width: 440px; margin: 0 auto; }
+  .receipt-doc h2 { color: #111; } .receipt-doc .muted { color: #666; }
+  .receipt-doc table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+  .receipt-doc td { padding: 8px 0; border-bottom: 1px solid #eee; font-size: 15px; }
+  .receipt-doc .tot td { border: none; font-weight: 800; font-size: 18px; padding-top: 14px; }
+  @media print {
+    body * { visibility: hidden; }
+    #receipt, #receipt * { visibility: visible; }
+    #receipt { display: block !important; position: absolute; inset: 0; background: #fff; padding: 20px; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<main>
+  <!-- ===================== DASHBOARD ===================== -->
+  <section id="dashboard" class="view active">
+    <div class="top">
+      <h1 id="bizName">Scrub &amp; Squish</h1>
+    </div>
+    <div class="month-sel">Viewing: <select id="monthPicker" onchange="setMonth(this.value)"></select></div>
+    <div class="stat-grid" id="statGrid"></div>
+    <div class="section-title">Today's Schedule</div>
+    <div id="todaySchedule"></div>
+  </section>
+
+  <!-- ===================== CUSTOMERS ===================== -->
+  <section id="customers" class="view">
+    <div class="top"><h1>Customers</h1><button class="addbtn" onclick="editCustomer()">+</button></div>
+    <input class="search" id="custSearch" placeholder="Search" oninput="renderCustomers()">
+    <div id="custList"></div>
+  </section>
+
+  <!-- ===================== SCHEDULE ===================== -->
+  <section id="schedule" class="view">
+    <div class="sched-top">
+      <button class="pillbtn" onclick="bookingLinkSheet()">🔗 Booking link</button>
+      <button class="iconbtn bell" onclick="remindersSheet()">🔔<span class="badge-count" id="remCount" style="display:none">0</span></button>
+    </div>
+    <div class="top"><h1>Schedule</h1><button class="btn sm" onclick="daySheet(todayStr())">+ Appt</button></div>
+    <div class="cal-head">
+      <button class="cal-nav" onclick="shiftMonth(-1)">‹</button>
+      <h2 id="calTitle"></h2>
+      <button class="cal-nav" onclick="shiftMonth(1)">›</button>
+    </div>
+    <div class="booked-bar">
+      <div><div class="k">Booked Revenue</div><div class="v green" id="bookedRev">$0</div></div>
+      <div><div class="k">Booked Appts</div><div class="v" id="bookedCount">0</div></div>
+    </div>
+    <div class="cal">
+      <div class="cal-dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+      <div class="cal-grid" id="calGrid"></div>
+    </div>
+  </section>
+
+  <!-- ===================== GOALS ===================== -->
+  <section id="goals" class="view">
+    <div class="top"><h1>Goals</h1></div>
+    <div id="goalsBody"></div>
+  </section>
+
+  <!-- ===================== SETTINGS ===================== -->
+  <section id="settings" class="view">
+    <div class="top"><h1>Settings</h1></div>
+    <div class="section-title">Business</div>
+    <div class="card">
+      <label>Business name</label>
+      <input id="setBizName" placeholder="Your business name">
+      <button class="btn sm" style="margin-top:12px" onclick="saveBiz()">Save</button>
+    </div>
+
+    <div class="section-title">Public Booking &amp; Profile</div>
+    <div class="card">
+      <p class="muted" style="font-size:14px;margin-bottom:12px">This info powers your shareable booking link &amp; public listing.</p>
+      <label>Tagline</label><input id="p_tagline" placeholder="Mobile detailing done right.">
+      <label>Service area</label><input id="p_area" placeholder="City / region you serve">
+      <div class="frow"><div><label>Public phone</label><input id="p_phone"></div>
+      <div><label>Public email</label><input id="p_email"></div></div>
+      <label>About</label><textarea id="p_bio" rows="2"></textarea>
+      <button class="btn sm" style="margin-top:12px" onclick="saveProfile()">Save profile</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="bookingLinkSheet()">View / share booking link</button>
+    </div>
+
+    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+      Services <button class="addbtn" onclick="editService()">+</button>
+    </div>
+    <div id="svcList"></div>
+
+    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+      Add-ons <button class="addbtn" onclick="editAddon()">+</button>
+    </div>
+    <div id="addonList"></div>
+
+    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+      Expenses <button class="addbtn" onclick="editExpense()">+</button>
+    </div>
+    <div id="expenseList"></div>
+
+    <div class="section-title">Data</div>
+    <div class="card">
+      <button class="btn ghost" onclick="exportData()">Export backup (.json)</button>
+      <button class="btn ghost" style="margin-top:10px" onclick="document.getElementById('importFile').click()">Import backup</button>
+      <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importData(this)">
+      <button class="btn danger" style="margin-top:10px" onclick="resetAll()">Reset all data</button>
+    </div>
+  </section>
+
+  <!-- ===================== PUBLIC BOOKING PAGE (shareable link) ===================== -->
+  <section id="publicView" class="view">
+    <div class="biz-hero">
+      <div class="logo" id="pubLogo">DP</div>
+      <h1 id="pubName">Business</h1>
+      <div class="tag" id="pubTag"></div>
+      <div class="meta" id="pubMeta"></div>
+    </div>
+    <div id="pubBooking"></div>
+    <div style="text-align:center;padding:26px 0 10px"><button class="link" onclick="exitPublic()">Staff login</button></div>
+  </section>
+</main>
+
+<!-- Hidden printable receipt -->
+<div id="receipt"></div>
+
+<!-- ===================== BOTTOM NAV ===================== -->
+<nav class="tabbar">
+  <button data-view="dashboard" class="active" onclick="go('dashboard')"><span class="ti">🏠</span>Dashboard</button>
+  <button data-view="customers" onclick="go('customers')"><span class="ti">👥</span>Customers</button>
+  <button data-view="goals" onclick="go('goals')"><span class="ti">🎯</span>Goals</button>
+  <button data-view="schedule" onclick="go('schedule')"><span class="ti">🗓️</span>Schedule</button>
+  <button data-view="settings" onclick="go('settings')"><span class="ti">⚙️</span>Settings</button>
+</nav>
+
+<!-- ===================== SHEET ===================== -->
+<div class="sheet-bg" id="sheetBg" onclick="if(event.target===this)closeSheet()">
+  <div class="sheet" id="sheet"></div>
+</div>
+
+<script>
+// ---------------- Storage ----------------
+const DB = {
+  get(k,d){ try { const v = localStorage.getItem('ss_'+k); return v===null?d:JSON.parse(v); } catch { return d; } },
+  set(k,v){ localStorage.setItem('ss_'+k, JSON.stringify(v)); }
+};
+let customers, services, addons, appointments, expenses, goals, biz;
+function loadAll(){
+  customers = DB.get('customers', null);
+  services = DB.get('services', null);
+  addons = DB.get('addons', null);
+  appointments = DB.get('appointments', null);
+  expenses = DB.get('expenses', null);
+  goals = DB.get('goals', null);
+  biz = DB.get('biz', null);
+  if(customers===null){ seed(); }
+  migrate();
+}
+const CATALOG_VERSION = 2;
+function migrate(){
+  // Apply the official price list to existing installs (one-time, keeps customers/appointments).
+  if(DB.get('catalogVersion',1) < CATALOG_VERSION){
+    services = defaultServices();
+    addons = defaultAddons();
+    DB.set('catalogVersion', CATALOG_VERSION);
+    persist();
+  }
+  // Backfill business profile for installs created before public booking existed.
+  if(biz && !biz.profile){
+    biz.profile = { tagline:'Mobile detailing done right.', area:'', phone:biz.phone||'', email:'', bio:'' };
+    persist();
+  }
+}
+function defaultServices(){
+  return [
+    // Full Detail
+    { id:uid(), name:'Compact Vehicle/Coupe – Full Detail', price:140, duration:120, active:true },
+    { id:uid(), name:'Medium-Sized Car – Full Detail', price:160, duration:135, active:true },
+    { id:uid(), name:'SUV / Truck – Full Detail', price:180, duration:150, active:true },
+    { id:uid(), name:'Large SUV / Van – Full Detail', price:200, duration:180, active:true },
+    // Basic Wash
+    { id:uid(), name:'Compact Vehicle/Coupe – Basic Wash', price:85, duration:45, active:true },
+    { id:uid(), name:'Medium-Sized Car – Basic Wash', price:105, duration:50, active:true },
+    { id:uid(), name:'SUV / Truck – Basic Wash', price:125, duration:60, active:true },
+    { id:uid(), name:'Large SUV / Van – Basic Wash', price:145, duration:70, active:true },
+  ];
+}
+function defaultAddons(){
+  return [
+    { id:uid(), name:'Wax Protection / Sealant', price:80, active:true },
+    { id:uid(), name:'Pet Hair Removal', price:40, active:true },
+    { id:uid(), name:'Heavy Stain Removal', price:25, active:true },
+    { id:uid(), name:'Odor Treatment', price:35, active:true },
+  ];
+}
+function persist(){
+  DB.set('customers',customers); DB.set('services',services); DB.set('addons',addons);
+  DB.set('appointments',appointments); DB.set('expenses',expenses); DB.set('goals',goals); DB.set('biz',biz);
+}
+function seed(){
+  biz = { name: 'Scrub & Squish', profile: { tagline:'Mobile detailing done right.', area:'Chagrin Falls & Greater Cleveland, OH', phone:'440-555-0100', email:'hello@scrubandsquish.com', bio:'Premium mobile auto detailing. We come to you.' } };
+  services = defaultServices();
+  addons = defaultAddons();
+  customers = [
+    { id:uid(), name:'Taryn Ponsky', phone:'440-773-2933', email:'tarynponsky@gmail.com',
+      address:'37250 Fairmount Blvd, Chagrin Falls, OH 44022', vehicle:'2022 Rivian R1S',
+      planName:'Large SUV / Van – Full Detail', planFreq:'Monthly', planPrice:200, notes:'' },
+    { id:uid(), name:'Zac Ponsky', phone:'440-773-2938', email:'zac@email.com',
+      address:'', vehicle:'2020 Toyota Tacoma', planName:'', planFreq:'', planPrice:0, notes:'' },
+  ];
+  appointments = [
+    { id:uid(), customerId:customers[0].id, datetime:'2026-03-26T10:00', serviceName:'Large SUV / Van – Full Detail', addonNames:[], price:200, status:'completed' },
+    { id:uid(), customerId:customers[1].id, datetime:'2026-03-28T13:00', serviceName:'SUV / Truck – Full Detail', addonNames:[], price:180, status:'completed' },
+  ];
+  expenses = [];
+  goals = { revenue: 5000 };
+  persist();
+}
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+// ---------------- Date helpers ----------------
+const TODAY = new Date('2026-06-08T12:00:00'); // app "today"
+function todayStr(){ return TODAY.toISOString().slice(0,10); }
+let viewMonth = TODAY.toISOString().slice(0,7);   // dashboard month  YYYY-MM
+let calMonth  = TODAY.toISOString().slice(0,7);   // schedule month
+function monthName(key){ const [y,m]=key.split('-'); return new Date(y, m-1, 1).toLocaleString('en-US',{month:'long'}); }
+function monthLong(key){ const [y,m]=key.split('-'); return new Date(y, m-1, 1).toLocaleString('en-US',{month:'long',year:'numeric'}); }
+function inMonth(dt, key){ return (dt||'').slice(0,7)===key; }
+function money(n){ return '$'+Math.round(Number(n)||0).toLocaleString('en-US'); }
+function money2(n){ return '$'+(Number(n)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtDate(dt){ return new Date(dt).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}); }
+function fmtTime(dt){ return new Date(dt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }
+function cust(id){ return customers.find(c=>c.id===id); }
+function custName(id){ const c=cust(id); return c?c.name:'— deleted —'; }
+
+// ---------------- Navigation ----------------
+function go(view){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('nav.tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  document.getElementById(view).classList.add('active');
+  window.scrollTo(0,0);
+  renderAll();
+}
+
+// ---------------- Aggregates ----------------
+function monthRevenue(key){ return appointments.filter(a=>a.status==='completed'&&inMonth(a.datetime,key)).reduce((s,a)=>s+(+a.price||0),0); }
+function monthExpenses(key){ return expenses.filter(e=>inMonth(e.date,key)).reduce((s,e)=>s+(+e.amount||0),0); }
+function monthBooked(key){ return appointments.filter(a=>a.status!=='cancelled'&&inMonth(a.datetime,key)); }
+function custSpend(id){ return appointments.filter(a=>a.customerId===id&&a.status==='completed').reduce((s,a)=>s+(+a.price||0),0); }
+function custVisits(id){ return appointments.filter(a=>a.customerId===id&&a.status==='completed').length; }
+
+// ---------------- Render: Dashboard ----------------
+function setMonth(v){ viewMonth=v; renderDashboard(); }
+function renderDashboard(){
+  document.getElementById('bizName').textContent = biz.name;
+  // month picker options: 6 months back -> 6 forward
+  const pick = document.getElementById('monthPicker');
+  const base = new Date(TODAY.getFullYear(), TODAY.getMonth(),1);
+  let opts='';
+  for(let i=-6;i<=6;i++){ const d=new Date(base.getFullYear(),base.getMonth()+i,1); const k=d.toISOString().slice(0,7);
+    opts+=`<option value="${k}" ${k===viewMonth?'selected':''}>${monthName(k)}${d.getFullYear()!==TODAY.getFullYear()?' '+d.getFullYear():''}</option>`; }
+  pick.innerHTML = opts;
+
+  const rev = monthRevenue(viewMonth), exp = monthExpenses(viewMonth), profit = rev-exp;
+  const mn = monthName(viewMonth).toUpperCase();
+  document.getElementById('statGrid').innerHTML = `
+    ${statCard('blue','👥', customers.length, 'Total Customers')}
+    ${statCard('green','💲', money(rev), mn+' Revenue')}
+    ${statCard('blue','📋', services.filter(s=>s.active).length, 'Active Services')}
+    ${statCard('green','📈', money(profit), mn+' Profit')}
+    ${statCard('blue','➕', addons.filter(a=>a.active).length, 'Active Add-ons')}
+    ${statCard('blue','💳', money(exp), mn+' Expenses')}`;
+
+  const tod = appointments.filter(a=>a.datetime.slice(0,10)===todayStr()&&a.status!=='cancelled')
+    .sort((a,b)=>a.datetime.localeCompare(b.datetime));
+  document.getElementById('todaySchedule').innerHTML = tod.length ? tod.map(apptRow).join('')
+    : `<div class="empty"><span class="ic">📅</span>Nothing scheduled today</div>`;
+}
+function statCard(color,icon,num,lbl){
+  return `<div class="stat"><div class="badge ${color}">${icon}</div><div><div class="num">${num}</div><div class="lbl">${lbl}</div></div></div>`;
+}
+function apptRow(a){
+  return `<div class="list-item" onclick="apptSheet('${a.id}')">
+    <div><div class="li-title">${custName(a.customerId)}</div>
+    <div class="li-sub">${fmtTime(a.datetime)} · ${a.serviceName||'Service'}</div></div>
+    <div class="li-right"><div class="li-title green">${money(a.price)}</div>
+    <span class="pill ${a.status}">${a.status}</span></div></div>`;
+}
+
+// ---------------- Render: Customers ----------------
+function renderCustomers(){
+  const q = (document.getElementById('custSearch').value||'').toLowerCase();
+  const list = customers.filter(c=>c.name.toLowerCase().includes(q)||(c.phone||'').includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name));
+  document.getElementById('custList').innerHTML = list.length ? list.map(c=>`
+    <div class="list-item" onclick="customerSheet('${c.id}')">
+      <div><div class="li-title">${c.name}</div><div class="li-sub">${c.phone||''}</div></div>
+      <div class="li-right"><div class="li-title green">${money(custSpend(c.id))}</div>
+      <div class="li-sub">${custVisits(c.id)} visit${custVisits(c.id)===1?'':'s'}</div></div>
+    </div>`).join('')
+    : `<div class="empty"><span class="ic">👥</span>No customers yet. Tap + to add one.</div>`;
+}
+
+// ---------------- Render: Schedule ----------------
+function shiftMonth(d){ const [y,m]=calMonth.split('-').map(Number); const nd=new Date(y,m-1+d,1); calMonth=nd.toISOString().slice(0,7); renderSchedule(); }
+function renderSchedule(){
+  document.getElementById('calTitle').textContent = monthLong(calMonth);
+  const booked = monthBooked(calMonth);
+  document.getElementById('bookedRev').textContent = money(booked.reduce((s,a)=>s+(+a.price||0),0));
+  document.getElementById('bookedCount').textContent = booked.length;
+  const [y,m]=calMonth.split('-').map(Number);
+  const first=new Date(y,m-1,1), startDow=first.getDay(), days=new Date(y,m,0).getDate();
+  let cells='';
+  for(let i=0;i<startDow;i++){ const d=new Date(y,m-1,1-(startDow-i)); cells+=cell(d,true); }
+  for(let d=1;d<=days;d++){ cells+=cell(new Date(y,m-1,d),false); }
+  const total=startDow+days, trail=(7-(total%7))%7;
+  for(let i=1;i<=trail;i++){ cells+=cell(new Date(y,m,i),true); }
+  document.getElementById('calGrid').innerHTML = cells;
+  // Reminder badge: scheduled appts in next 3 days not yet reminded
+  const due = remindersDue().length;
+  const rc = document.getElementById('remCount');
+  if(rc){ rc.style.display = due? 'grid':'none'; rc.textContent = due; }
+}
+function remindersDue(){
+  const now = TODAY.getTime(), horizon = now + 3*86400000;
+  return appointments.filter(a=>{
+    if(a.status!=='scheduled' || a.reminderSent) return false;
+    const t = new Date(a.datetime).getTime();
+    return t>=now && t<=horizon;
+  });
+}
+function cell(date,dim){
+  const ds=date.toISOString().slice(0,10);
+  const appts=appointments.filter(a=>a.datetime.slice(0,10)===ds&&a.status!=='cancelled');
+  const isToday=ds===todayStr();
+  let dots='';
+  if(appts.length){ dots='<div class="dot">'+appts.slice(0,3).map(a=>`<i class="${a.status==='completed'?'done':''}"></i>`).join('')+'</div>'; }
+  return `<div class="cal-cell ${dim?'dim':''} ${isToday?'today':''}" onclick="daySheet('${ds}')">${date.getDate()}${dots}</div>`;
+}
+
+// ---------------- Render: Goals ----------------
+function renderGoals(){
+  const rev = monthRevenue(viewMonth);
+  const goal = goals.revenue||0;
+  const pct = goal? Math.min(100, Math.round(rev/goal*100)) : 0;
+  const completed = appointments.filter(a=>a.status==='completed'&&inMonth(a.datetime,viewMonth)).length;
+  document.getElementById('goalsBody').innerHTML = `
+    <div class="goal-card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3>${monthName(viewMonth)} Revenue Goal</h3>
+        <button class="link" onclick="editGoal()">Edit</button>
+      </div>
+      <div class="bar"><span style="width:${pct}%"></span></div>
+      <div style="display:flex;justify-content:space-between;font-size:15px">
+        <span class="green" style="font-weight:700">${money(rev)}</span>
+        <span class="muted">of ${money(goal)} · ${pct}%</span>
+      </div>
+    </div>
+    <div class="goal-card">
+      <h3>This Month</h3>
+      <div class="detail-row"><div class="k">Jobs completed</div><div class="v">${completed}</div></div>
+      <div class="detail-row"><div class="k">Revenue</div><div class="v green">${money(rev)}</div></div>
+      <div class="detail-row" style="border:none"><div class="k">Avg ticket</div><div class="v">${money(completed?rev/completed:0)}</div></div>
+    </div>`;
+}
+
+// ---------------- Render: Settings ----------------
+function renderSettings(){
+  document.getElementById('setBizName').value = biz.name;
+  const p = biz.profile || {};
+  document.getElementById('p_tagline').value = p.tagline||'';
+  document.getElementById('p_area').value = p.area||'';
+  document.getElementById('p_phone').value = p.phone||'';
+  document.getElementById('p_email').value = p.email||'';
+  document.getElementById('p_bio').value = p.bio||'';
+  document.getElementById('svcList').innerHTML = services.map(s=>`
+    <div class="list-item" onclick="editService('${s.id}')">
+      <div><div class="li-title">${s.name}</div><div class="li-sub">${s.duration||0} min${s.active?'':' · inactive'}</div></div>
+      <div class="li-right"><div class="li-title">${money(s.price)}</div></div>
+    </div>`).join('') || `<div class="empty">No services yet.</div>`;
+  document.getElementById('addonList').innerHTML = addons.map(a=>`
+    <div class="list-item" onclick="editAddon('${a.id}')">
+      <div><div class="li-title">${a.name}</div><div class="li-sub">${a.active?'active':'inactive'}</div></div>
+      <div class="li-right"><div class="li-title">${money(a.price)}</div></div>
+    </div>`).join('') || `<div class="empty">No add-ons yet.</div>`;
+  const exp=[...expenses].sort((a,b)=>b.date.localeCompare(a.date));
+  document.getElementById('expenseList').innerHTML = exp.map(e=>`
+    <div class="list-item" onclick="editExpense('${e.id}')">
+      <div><div class="li-title">${e.description||'Expense'}</div><div class="li-sub">${fmtDate(e.date)}${e.category?' · '+e.category:''}</div></div>
+      <div class="li-right"><div class="li-title" style="color:var(--red)">−${money(e.amount)}</div></div>
+    </div>`).join('') || `<div class="empty">No expenses logged.</div>`;
+}
+
+function renderAll(){ renderDashboard(); renderCustomers(); renderSchedule(); renderGoals(); renderSettings(); }
+
+// ---------------- Sheet helpers ----------------
+const sheetBg=document.getElementById('sheetBg'), sheet=document.getElementById('sheet');
+function openSheet(html){ sheet.innerHTML='<div class="grabber"></div>'+html; sheetBg.classList.add('open'); }
+function closeSheet(){ sheetBg.classList.remove('open'); }
+function val(id){ const e=document.getElementById(id); return e?e.value:''; }
+function svcOptions(sel){ return services.filter(s=>s.active||s.name===sel).map(s=>`<option value="${s.name}" data-price="${s.price}" ${s.name===sel?'selected':''}>${s.name} — ${money(s.price)}</option>`).join(''); }
+function custOptions(sel){ return customers.map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${c.name}</option>`).join(''); }
+
+// ---------------- Customer sheets ----------------
+function customerSheet(id){
+  const c=cust(id); if(!c) return;
+  const appts=appointments.filter(a=>a.customerId===id).sort((a,b)=>b.datetime.localeCompare(a.datetime));
+  const plan = c.planName ? `${c.planName} · ${c.planFreq||''} · ${money(c.planPrice)}/visit` : '<span class="muted">No recurring plan</span>';
+  openSheet(`
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>${c.name}</h3><button class="link" onclick="editCustomer('${id}')">Edit</button>
+    </div>
+    <div class="detail-row"><div class="k">Phone</div><div class="v">${c.phone||'—'}</div></div>
+    <div class="detail-row"><div class="k">Email</div><div class="v">${c.email||'—'}</div></div>
+    <div class="detail-row"><div class="k">Address</div><div class="v">${c.address||'—'}</div></div>
+    <div class="detail-row"><div class="k">Vehicle</div><div class="v">${c.vehicle||'—'}</div></div>
+    <div class="detail-row"><div class="k">Recurring Plan</div><div class="v">${plan}</div></div>
+    <div style="display:flex;gap:14px;margin:16px 0">
+      <div><div class="k" style="font-size:12px;color:var(--muted)">TOTAL SPENT</div><div class="green" style="font-size:22px;font-weight:800">${money(custSpend(id))}</div></div>
+      <div><div class="k" style="font-size:12px;color:var(--muted)">VISITS</div><div style="font-size:22px;font-weight:800">${custVisits(id)}</div></div>
+    </div>
+    <button class="btn" onclick="apptSheet(null,'${id}')">+ Book Appointment</button>
+    <div class="section-title" style="font-size:17px;margin-top:20px">Appointment History</div>
+    ${appts.length?appts.map(a=>`
+      <div class="list-item" onclick="apptSheet('${a.id}')">
+        <div><div class="li-title">${fmtDate(a.datetime)}</div><div class="li-sub">${a.serviceName||''}</div></div>
+        <div class="li-right"><div class="li-title green">${money(a.price)}</div><span class="pill ${a.status}">${a.status}</span></div>
+      </div>`).join(''):'<div class="empty">No appointments yet.</div>'}
+    <button class="btn danger" style="margin-top:14px" onclick="delCustomer('${id}')">Delete Customer</button>
+  `);
+}
+function editCustomer(id){
+  const c=id?cust(id):{};
+  openSheet(`
+    <h3>${id?'Edit':'New'} Customer</h3>
+    <label>Name</label><input id="c_name" value="${c.name||''}">
+    <div class="frow"><div><label>Phone</label><input id="c_phone" value="${c.phone||''}"></div>
+    <div><label>Email</label><input id="c_email" value="${c.email||''}"></div></div>
+    <label>Address</label><input id="c_address" value="${c.address||''}">
+    <label>Vehicle</label><input id="c_vehicle" value="${c.vehicle||''}" placeholder="2022 Rivian R1S">
+    <label>Recurring plan</label>
+    <div class="frow">
+      <div><input id="c_planName" value="${c.planName||''}" placeholder="Plan name"></div>
+      <div><select id="c_planFreq">${['','Weekly','Biweekly','Monthly','Quarterly'].map(f=>`<option ${c.planFreq===f?'selected':''}>${f}</option>`).join('')}</select></div>
+    </div>
+    <label>Plan price / visit</label><input id="c_planPrice" type="number" value="${c.planPrice||''}">
+    <label>Notes</label><textarea id="c_notes" rows="2">${c.notes||''}</textarea>
+    <div class="sheet-actions"><button class="btn ghost" onclick="closeSheet()">Cancel</button>
+    <button class="btn" onclick="saveCustomer('${id||''}')">Save</button></div>`);
+}
+function saveCustomer(id){
+  const d={ name:val('c_name').trim(), phone:val('c_phone'), email:val('c_email'), address:val('c_address'),
+    vehicle:val('c_vehicle'), planName:val('c_planName'), planFreq:val('c_planFreq'), planPrice:+val('c_planPrice')||0, notes:val('c_notes') };
+  if(!d.name){ alert('Name is required'); return; }
+  if(id){ Object.assign(cust(id),d); } else { customers.push({id:uid(),...d}); }
+  persist(); closeSheet(); renderAll();
+}
+function delCustomer(id){ if(!confirm('Delete this customer?'))return; customers=customers.filter(c=>c.id!==id); persist(); closeSheet(); renderAll(); }
+
+// ---------------- Appointment sheets ----------------
+let apptAddons=[];
+function apptSheet(id, presetCust){
+  if(customers.length===0){ alert('Add a customer first.'); return; }
+  const a=id?appointments.find(x=>x.id===id):{};
+  apptAddons = a.addonNames? [...a.addonNames] : [];
+  const dt = a.datetime || (presetCust? todayStr()+'T10:00' : todayStr()+'T10:00');
+  openSheet(`
+    <h3>${id?'Edit':'New'} Appointment</h3>
+    <label>Customer</label><select id="a_cust">${custOptions(a.customerId||presetCust)}</select>
+    <label>Date &amp; time</label><input id="a_dt" type="datetime-local" value="${dt}">
+    <label>Service</label><select id="a_svc" onchange="onSvcChange()">${svcOptions(a.serviceName)}</select>
+    <label>Add-ons</label><div id="a_addons">${addons.map(ad=>`<span class="addon-chip ${apptAddons.includes(ad.name)?'on':''}" onclick="toggleAddon('${ad.name}',${ad.price})">${ad.name} +${money(ad.price)}</span>`).join('')||'<span class="muted">No add-ons configured</span>'}</div>
+    <label>Price</label><input id="a_price" type="number" value="${a.price!=null?a.price:''}">
+    <label>Status</label>
+    <div class="seg" id="a_status">
+      ${['scheduled','completed','cancelled'].map(s=>`<button class="${(a.status||'scheduled')===s?'active':''}" data-s="${s}" onclick="segPick(this)">${s}</button>`).join('')}
+    </div>
+    <div class="sheet-actions"><button class="btn ghost" onclick="closeSheet()">Cancel</button>
+    <button class="btn" onclick="saveAppt('${id||''}')">Save</button></div>
+    ${id?`<div class="sheet-actions"><button class="btn ghost" onclick="showReceipt('${id}')">🧾 Receipt</button><button class="btn ghost" onclick="sendReminder('${id}')">🔔 Reminder</button></div>
+    <button class="btn danger" style="margin-top:10px" onclick="delAppt('${id}')">Delete Appointment</button>`:''}`);
+  if(!id) onSvcChange();
+}
+function segPick(b){ b.parentElement.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); }
+function recalcPrice(){
+  const svc=services.find(s=>s.name===val('a_svc'));
+  let p=svc?svc.price:0;
+  apptAddons.forEach(n=>{ const ad=addons.find(x=>x.name===n); if(ad)p+=ad.price; });
+  document.getElementById('a_price').value=p;
+}
+function onSvcChange(){ recalcPrice(); }
+function toggleAddon(name,price){
+  const i=apptAddons.indexOf(name);
+  if(i>=0)apptAddons.splice(i,1); else apptAddons.push(name);
+  document.querySelectorAll('#a_addons .addon-chip').forEach(c=>{ if(c.textContent.startsWith(name)) c.classList.toggle('on'); });
+  recalcPrice();
+}
+function saveAppt(id){
+  const status=document.querySelector('#a_status button.active').dataset.s;
+  const d={ customerId:val('a_cust'), datetime:val('a_dt'), serviceName:val('a_svc'),
+    addonNames:[...apptAddons], price:+val('a_price')||0, status };
+  if(id){ Object.assign(appointments.find(x=>x.id===id),d); } else { appointments.push({id:uid(),...d}); }
+  persist(); closeSheet(); renderAll();
+}
+function delAppt(id){ if(!confirm('Delete this appointment?'))return; appointments=appointments.filter(a=>a.id!==id); persist(); closeSheet(); renderAll(); }
+
+// Day sheet (from calendar)
+function daySheet(ds){
+  const appts=appointments.filter(a=>a.datetime.slice(0,10)===ds).sort((a,b)=>a.datetime.localeCompare(b.datetime));
+  openSheet(`
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>${fmtDate(ds+'T12:00')}</h3>
+      <button class="btn sm" onclick="apptSheetForDay('${ds}')">+ Add</button>
+    </div>
+    <div style="margin-top:14px">
+      ${appts.length?appts.map(apptRow).join(''):'<div class="empty"><span class="ic">📅</span>Nothing scheduled</div>'}
+    </div>`);
+}
+function apptSheetForDay(ds){
+  apptSheet(null);
+  setTimeout(()=>{ const el=document.getElementById('a_dt'); if(el) el.value=ds+'T10:00'; },30);
+}
+
+// ---------------- Service / Add-on / Expense sheets ----------------
+function editService(id){
+  const s=id?services.find(x=>x.id===id):{active:true};
+  openSheet(`
+    <h3>${id?'Edit':'New'} Service</h3>
+    <label>Name</label><input id="s_name" value="${s.name||''}">
+    <div class="frow"><div><label>Price</label><input id="s_price" type="number" value="${s.price||''}"></div>
+    <div><label>Duration (min)</label><input id="s_dur" type="number" value="${s.duration||''}"></div></div>
+    <div class="chk"><input type="checkbox" id="s_active" ${s.active?'checked':''}><label style="margin:0">Active</label></div>
+    <div class="sheet-actions"><button class="btn ghost" onclick="closeSheet()">Cancel</button>
+    <button class="btn" onclick="saveService('${id||''}')">Save</button></div>
+    ${id?`<button class="btn danger" style="margin-top:10px" onclick="delService('${id}')">Delete</button>`:''}`);
+}
+function saveService(id){
+  const d={ name:val('s_name').trim(), price:+val('s_price')||0, duration:+val('s_dur')||0, active:document.getElementById('s_active').checked };
+  if(!d.name){alert('Name required');return;}
+  if(id){Object.assign(services.find(x=>x.id===id),d);}else{services.push({id:uid(),...d});}
+  persist(); closeSheet(); renderAll();
+}
+function delService(id){ if(!confirm('Delete service?'))return; services=services.filter(s=>s.id!==id); persist(); closeSheet(); renderAll(); }
+
+function editAddon(id){
+  const a=id?addons.find(x=>x.id===id):{active:true};
+  openSheet(`
+    <h3>${id?'Edit':'New'} Add-on</h3>
+    <label>Name</label><input id="ad_name" value="${a.name||''}">
+    <label>Price</label><input id="ad_price" type="number" value="${a.price||''}">
+    <div class="chk"><input type="checkbox" id="ad_active" ${a.active?'checked':''}><label style="margin:0">Active</label></div>
+    <div class="sheet-actions"><button class="btn ghost" onclick="closeSheet()">Cancel</button>
+    <button class="btn" onclick="saveAddon('${id||''}')">Save</button></div>
+    ${id?`<button class="btn danger" style="margin-top:10px" onclick="delAddon('${id}')">Delete</button>`:''}`);
+}
+function saveAddon(id){
+  const d={ name:val('ad_name').trim(), price:+val('ad_price')||0, active:document.getElementById('ad_active').checked };
+  if(!d.name){alert('Name required');return;}
+  if(id){Object.assign(addons.find(x=>x.id===id),d);}else{addons.push({id:uid(),...d});}
+  persist(); closeSheet(); renderAll();
+}
+function delAddon(id){ if(!confirm('Delete add-on?'))return; addons=addons.filter(a=>a.id!==id); persist(); closeSheet(); renderAll(); }
+
+function editExpense(id){
+  const e=id?expenses.find(x=>x.id===id):{date:todayStr()};
+  openSheet(`
+    <h3>${id?'Edit':'New'} Expense</h3>
+    <label>Description</label><input id="e_desc" value="${e.description||''}" placeholder="Supplies, fuel, etc.">
+    <div class="frow"><div><label>Amount</label><input id="e_amt" type="number" value="${e.amount||''}"></div>
+    <div><label>Date</label><input id="e_date" type="date" value="${e.date||todayStr()}"></div></div>
+    <label>Category</label>
+    <select id="e_cat">${['Supplies','Fuel','Equipment','Marketing','Insurance','Other'].map(c=>`<option ${e.category===c?'selected':''}>${c}</option>`).join('')}</select>
+    <div class="sheet-actions"><button class="btn ghost" onclick="closeSheet()">Cancel</button>
+    <button class="btn" onclick="saveExpense('${id||''}')">Save</button></div>
+    ${id?`<button class="btn danger" style="margin-top:10px" onclick="delExpense('${id}')">Delete</button>`:''}`);
+}
+function saveExpense(id){
+  const d={ description:val('e_desc'), amount:+val('e_amt')||0, date:val('e_date'), category:val('e_cat') };
+  if(!d.amount){alert('Amount required');return;}
+  if(id){Object.assign(expenses.find(x=>x.id===id),d);}else{expenses.push({id:uid(),...d});}
+  persist(); closeSheet(); renderAll();
+}
+function delExpense(id){ if(!confirm('Delete expense?'))return; expenses=expenses.filter(e=>e.id!==id); persist(); closeSheet(); renderAll(); }
+
+// ---------------- Goals / Biz / Data ----------------
+function editGoal(){
+  openSheet(`
+    <h3>Monthly Revenue Goal</h3>
+    <label>Target ($)</label><input id="g_rev" type="number" value="${goals.revenue||''}">
+    <div class="sheet-actions"><button class="btn ghost" onclick="closeSheet()">Cancel</button>
+    <button class="btn" onclick="saveGoal()">Save</button></div>`);
+}
+function saveGoal(){ goals.revenue=+val('g_rev')||0; persist(); closeSheet(); renderGoals(); }
+function saveBiz(){ biz.name=val('setBizName').trim()||'My Detailing'; persist(); renderAll(); alert('Saved'); }
+
+function exportData(){
+  const data={customers,services,addons,appointments,expenses,goals,biz};
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='scrub-squish-backup-'+todayStr()+'.json'; a.click();
+}
+function importData(input){
+  const f=input.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result);
+    customers=d.customers||[]; services=d.services||[]; addons=d.addons||[];
+    appointments=d.appointments||[]; expenses=d.expenses||[]; goals=d.goals||{revenue:0}; biz=d.biz||{name:'My Detailing'};
+    persist(); renderAll(); alert('Imported successfully.');
+  }catch{ alert('Invalid backup file.'); } };
+  r.readAsText(f); input.value='';
+}
+function resetAll(){ if(!confirm('Erase ALL data and reload sample data?'))return; localStorage.clear(); loadAll(); renderAll(); }
+
+// ---------------- Business profile ----------------
+function saveProfile(){
+  biz.profile = biz.profile||{};
+  biz.profile.tagline=val('p_tagline'); biz.profile.area=val('p_area');
+  biz.profile.phone=val('p_phone'); biz.profile.email=val('p_email'); biz.profile.bio=val('p_bio');
+  persist(); renderSettings(); alert('Profile saved');
+}
+
+// ---------------- Public booking link ----------------
+function bookingURL(){ return location.href.split('#')[0] + '#book'; }
+function bookingLinkSheet(){
+  openSheet(`
+    <h3>Your 24/7 booking link</h3>
+    <p class="muted" style="font-size:14px">Share this link so customers can book themselves anytime. Bookings drop straight onto your Schedule.</p>
+    <div style="background:var(--panel-2);border-radius:11px;padding:12px;margin:12px 0;font-size:13px;word-break:break-all">${bookingURL()}</div>
+    <button class="btn" onclick="copyBookingLink()">Copy link</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="openPublicPage()">Open booking page</button>
+    <button class="btn ghost" style="margin-top:10px" onclick="startBooking(document.getElementById('sheetBookHost'))">Take a booking now</button>
+    <div id="sheetBookHost" style="margin-top:16px"></div>`);
+}
+function copyBookingLink(){
+  const url=bookingURL();
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(url).then(()=>alert('Booking link copied!'),()=>prompt('Copy this link:',url)); }
+  else prompt('Copy this link:',url);
+}
+function openPublicPage(){ closeSheet(); showPublic(true); }
+function showPublic(on){ document.body.classList.toggle('public', on); if(on){ renderPublic(); window.scrollTo(0,0); } }
+function exitPublic(){ showPublic(false); go('schedule'); }
+function renderPublic(){
+  const p=biz.profile||{};
+  document.getElementById('pubLogo').textContent=(biz.name||'D').slice(0,2).toUpperCase();
+  document.getElementById('pubName').textContent=biz.name;
+  document.getElementById('pubTag').textContent=p.tagline||'';
+  document.getElementById('pubMeta').innerHTML=[p.area,p.phone].filter(Boolean).join(' · ');
+  startBooking(document.getElementById('pubBooking'));
+}
+
+// ---------------- Booking flow (used by public page + admin) ----------------
+let bk=null;
+const VSIZES=[
+  {key:'Compact Vehicle/Coupe', label:'Compact / Coupe'},
+  {key:'Medium-Sized Car', label:'Medium-Sized Car'},
+  {key:'SUV / Truck', label:'SUV / Truck'},
+  {key:'Large SUV / Van', label:'Large SUV / Van'},
+];
+const WASHES=['Full Detail','Basic Wash'];
+function startBooking(container){ bk={ step:0, size:null, wash:null, addons:[], dt:'', name:'', phone:'', email:'', vehicle:'', container }; renderBooking(); }
+function bookingServiceName(){ return (bk.size&&bk.wash)? `${bk.size} – ${bk.wash}` : null; }
+function bookingService(){ return services.find(s=>s.name===bookingServiceName()); }
+function bookingTotal(){ let t=bookingService()?bookingService().price:0; bk.addons.forEach(n=>{const a=addons.find(x=>x.name===n); if(a)t+=a.price;}); return t; }
+function bkPick(field,v){ bk[field]=v; if(field==='size') bk.wash=null; renderBooking(); }
+function bkToggle(name){ const i=bk.addons.indexOf(name); if(i>=0)bk.addons.splice(i,1); else bk.addons.push(name); renderBooking(); }
+function bkBack(){ if(bk.step>0){ bk.step--; renderBooking(); } }
+function bkNext(){
+  if(bk.step===0 && !bk.size) return alert('Choose a vehicle type');
+  if(bk.step===1 && !bk.wash) return alert('Choose a service');
+  if(bk.step===3){ const d=document.getElementById('bk_dt'); if(d) bk.dt=d.value; if(!bk.dt) return alert('Pick a date & time'); }
+  if(bk.step===4 && (!bk.name.trim()||!bk.phone.trim())) return alert('Name and phone are required');
+  bk.step++; renderBooking();
+}
+function renderBooking(){
+  const c=bk.container; if(!c) return;
+  const dots=`<div class="step-dots">${[0,1,2,3,4,5].map(i=>`<i class="${i<=bk.step?'on':''}"></i>`).join('')}</div>`;
+  let body='';
+  if(bk.step===0){
+    body=`<h3>What are we detailing?</h3>`+VSIZES.map(v=>{
+      const fd=services.find(s=>s.name===`${v.key} – Full Detail`);
+      return `<div class="opt ${bk.size===v.key?'on':''}" onclick="bkPick('size','${v.key}')"><div><div class="t">${v.label}</div><div class="s">from ${money(services.find(s=>s.name===`${v.key} – Basic Wash`)?.price||0)}</div></div></div>`;
+    }).join('');
+  } else if(bk.step===1){
+    body=`<h3>Choose a service</h3>`+WASHES.map(w=>{
+      const s=services.find(x=>x.name===`${bk.size} – ${w}`);
+      if(!s||!s.active) return '';
+      return `<div class="opt ${bk.wash===w?'on':''}" onclick="bkPick('wash','${w}')"><div><div class="t">${w}</div><div class="s">${s.duration} min</div></div><div class="p">${money(s.price)}</div></div>`;
+    }).join('');
+  } else if(bk.step===2){
+    const act=addons.filter(a=>a.active);
+    body=`<h3>Add-ons <span class="muted" style="font-weight:400;font-size:14px">(optional)</span></h3>`+(act.length?act.map(a=>`<div class="opt ${bk.addons.includes(a.name)?'on':''}" onclick="bkToggle('${a.name}')"><div class="t">${a.name}</div><div class="p">+${money(a.price)}</div></div>`).join(''):'<p class="muted">No add-ons available.</p>');
+  } else if(bk.step===3){
+    body=`<h3>Pick a date &amp; time</h3><label>When works for you?</label><input id="bk_dt" type="datetime-local" min="${todayStr()}T07:00" value="${bk.dt||todayStr()+'T10:00'}" oninput="bk.dt=this.value">`;
+  } else if(bk.step===4){
+    body=`<h3>Your details</h3>
+      <label>Name</label><input id="bk_name" value="${bk.name}" oninput="bk.name=this.value">
+      <div class="frow"><div><label>Phone</label><input id="bk_phone" value="${bk.phone}" oninput="bk.phone=this.value"></div>
+      <div><label>Email</label><input id="bk_email" value="${bk.email}" oninput="bk.email=this.value"></div></div>
+      <label>Vehicle</label><input id="bk_vehicle" value="${bk.vehicle}" placeholder="${bk.size||'Make & model'}" oninput="bk.vehicle=this.value">`;
+  } else if(bk.step===5){
+    body=`<h3>Confirm your booking</h3>
+      <div class="detail-row"><div class="k">Service</div><div class="v">${bookingServiceName()}</div></div>
+      ${bk.addons.length?`<div class="detail-row"><div class="k">Add-ons</div><div class="v">${bk.addons.join(', ')}</div></div>`:''}
+      <div class="detail-row"><div class="k">When</div><div class="v">${bk.dt?fmtDate(bk.dt)+' · '+fmtTime(bk.dt):'—'}</div></div>
+      <div class="detail-row"><div class="k">Name</div><div class="v">${bk.name||'—'}</div></div>
+      <div class="detail-row"><div class="k">Contact</div><div class="v">${[bk.phone,bk.email].filter(Boolean).join(' · ')||'—'}</div></div>`;
+  }
+  const totalBar = bk.step>=1 ? `<div class="total-bar"><span class="muted">Estimated total</span><span class="tt green">${money(bookingTotal())}</span></div>` : '';
+  let nav;
+  if(bk.step<5){
+    nav=`<div class="sheet-actions">${bk.step>0?`<button class="btn ghost" onclick="bkBack()">Back</button>`:''}<button class="btn" onclick="bkNext()">${bk.step===4?'Review':'Continue'}</button></div>`;
+  } else {
+    nav=`<div class="sheet-actions"><button class="btn ghost" onclick="bkBack()">Back</button><button class="btn green" onclick="bkConfirm()">Confirm booking</button></div>`;
+  }
+  c.innerHTML=dots+body+totalBar+nav;
+}
+function bkConfirm(){
+  const digits=s=>(s||'').replace(/\D/g,'');
+  let c=customers.find(x=>x.phone&&bk.phone&&digits(x.phone)===digits(bk.phone));
+  if(!c){ c={ id:uid(), name:bk.name.trim(), phone:bk.phone.trim(), email:bk.email.trim(), address:'', vehicle:bk.vehicle.trim()||bk.size, planName:'', planFreq:'', planPrice:0, notes:'Added via booking link' }; customers.push(c); }
+  const appt={ id:uid(), customerId:c.id, datetime:bk.dt, serviceName:bookingServiceName(), addonNames:[...bk.addons], price:bookingTotal(), status:'scheduled', source:'booking', reminderSent:false };
+  appointments.push(appt); persist();
+  const html=`<div style="text-align:center;padding:24px 6px">
+      <div style="font-size:54px">✅</div>
+      <h3 style="margin:10px 0">You're booked!</h3>
+      <p class="muted">${fmtDate(appt.datetime)} at ${fmtTime(appt.datetime)}</p>
+      <p style="margin-top:6px">${appt.serviceName} — <span class="green" style="font-weight:700">${money(appt.price)}</span></p>
+      <p class="muted" style="margin-top:14px;font-size:14px">${biz.name} will see you then${bk.email?'. A confirmation was sent to '+bk.email:''}.</p>
+      <button class="btn" style="margin-top:18px;width:auto;padding:12px 22px" onclick="startBooking(bk.container)">Book another</button>
+    </div>`;
+  if(bk.container && bk.container.id==='pubBooking'){ bk.container.innerHTML=html; }
+  else { sheet.innerHTML='<div class="grabber"></div>'+html; }
+  renderAll();
+}
+
+// ---------------- Reminders ----------------
+function remindersSheet(){
+  const upcoming=appointments.filter(a=>a.status==='scheduled' && new Date(a.datetime).getTime()>=TODAY.getTime())
+    .sort((a,b)=>a.datetime.localeCompare(b.datetime));
+  const due=remindersDue();
+  openSheet(`
+    <h3>Reminders</h3>
+    <p class="muted" style="font-size:14px">Send appointment reminders to customers. Appointments within 3 days need one.</p>
+    <div style="margin-top:8px">
+    ${upcoming.length?upcoming.map(a=>`
+      <div class="list-item" style="cursor:default">
+        <div><div class="li-title">${custName(a.customerId)}</div><div class="li-sub">${fmtDate(a.datetime)} · ${fmtTime(a.datetime)}</div></div>
+        <div class="li-right">${a.reminderSent?'<span class="pill completed">sent</span>':`<button class="btn sm" onclick="sendReminder('${a.id}',true)">Send</button>`}</div>
+      </div>`).join(''):'<div class="empty"><span class="ic">🔔</span>No upcoming appointments.</div>'}
+    </div>
+    ${due.length>1?`<button class="btn" style="margin-top:12px" onclick="sendAllReminders()">Send all due (${due.length})</button>`:''}`);
+}
+function sendReminder(id, reopen){
+  const a=appointments.find(x=>x.id===id); if(!a) return;
+  a.reminderSent=true; persist();
+  const c=cust(a.customerId); const first=c?c.name.split(' ')[0]:'there';
+  alert(`📲 Reminder sent to ${c?c.name:'customer'}${c&&c.phone?' ('+c.phone+')':''}:\n\n"Hi ${first}! Friendly reminder of your ${a.serviceName} appointment on ${fmtDate(a.datetime)} at ${fmtTime(a.datetime)}. Reply to reschedule. — ${biz.name}"`);
+  renderAll();
+  if(reopen) remindersSheet(); else closeSheet();
+}
+function sendAllReminders(){ remindersDue().forEach(a=>a.reminderSent=true); persist(); alert('Reminders sent to all due customers.'); renderAll(); remindersSheet(); }
+
+// ---------------- Receipt / Invoice ----------------
+function nextInvoiceNo(){ return appointments.reduce((m,a)=>Math.max(m,a.invoiceNo||1000),1000)+1; }
+function showReceipt(id){
+  const a=appointments.find(x=>x.id===id); if(!a) return;
+  if(!a.invoiceNo){ a.invoiceNo=nextInvoiceNo(); persist(); }
+  const c=cust(a.customerId), p=biz.profile||{};
+  const svc=services.find(s=>s.name===a.serviceName);
+  const addTotal=(a.addonNames||[]).reduce((s,n)=>{const ad=addons.find(x=>x.name===n); return s+(ad?ad.price:0);},0);
+  const basePrice = svc? svc.price : Math.max(0, (a.price||0)-addTotal);
+  let rows=`<tr><td>${a.serviceName||'Service'}</td><td style="text-align:right">${money(basePrice)}</td></tr>`;
+  (a.addonNames||[]).forEach(n=>{ const ad=addons.find(x=>x.name===n); rows+=`<tr><td>${n}</td><td style="text-align:right">${money(ad?ad.price:0)}</td></tr>`; });
+  document.getElementById('receipt').innerHTML=`
+    <div class="receipt-doc">
+      <h2>${biz.name}</h2>
+      <div class="muted">${p.area||''}</div>
+      <div class="muted">${[p.phone,p.email].filter(Boolean).join(' · ')}</div>
+      <hr style="margin:14px 0;border:none;border-top:1px solid #ddd">
+      <div style="display:flex;justify-content:space-between">
+        <div><strong>Invoice #${a.invoiceNo}</strong><br><span class="muted">${fmtDate(a.datetime)}</span></div>
+        <div style="text-align:right"><strong>Billed to</strong><br>${c?c.name:''}<br><span class="muted">${c?c.phone:''}</span></div>
+      </div>
+      <table><tbody>${rows}<tr class="tot"><td>Total</td><td style="text-align:right">${money(a.price)}</td></tr></tbody></table>
+      <div class="muted" style="font-size:13px">${a.status==='completed'?'✓ PAID':'Balance due on service'}</div>
+      <div class="no-print" style="margin-top:20px;display:flex;gap:10px">
+        <button class="btn" onclick="window.print()">Print / Save PDF</button>
+        <button class="btn ghost" onclick="hideReceipt()">Close</button>
+      </div>
+    </div>`;
+  document.getElementById('receipt').classList.add('show');
+  closeSheet();
+}
+function hideReceipt(){ const r=document.getElementById('receipt'); r.classList.remove('show'); r.innerHTML=''; }
+
+// ---------------- Init ----------------
+loadAll(); renderAll();
+if(location.hash==='#book'){ showPublic(true); }
+window.addEventListener('hashchange', ()=>{ showPublic(location.hash==='#book'); });
+</script>
+</body>
+</html>
