@@ -163,6 +163,15 @@
   .swipe-thumb { position:absolute; top:4px; left:4px; width:46px; height:46px; border-radius:11px; background:var(--green); color:#fff; display:grid; place-items:center; font-size:22px; z-index:2; cursor:grab; }
   nav.tabbar button { position:relative; }
   .nav-badge { position:absolute; top:0; right:8px; background:var(--red); color:#fff; font-size:9px; font-weight:800; min-width:15px; height:15px; border-radius:8px; display:none; align-items:center; justify-content:center; padding:0 3px; }
+  /* Client database */
+  .cust-stats { display:flex; gap:10px; margin-bottom:14px; }
+  .cust-stats>div { flex:1; background:var(--panel); border-radius:12px; padding:12px 8px; text-align:center; }
+  .cust-stats .n { font-size:20px; font-weight:800; } .cust-stats .l { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; font-weight:600; margin-top:2px; }
+  .cust-controls { display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+  .cust-controls select { width:auto; padding:9px 12px; font-size:14px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; }
+  .chip { background:var(--panel-2); border:1px solid var(--border); color:var(--muted); border-radius:20px; padding:7px 13px; font-size:13px; font-weight:600; cursor:pointer; }
+  .chip.on { background:var(--accent-soft); border-color:var(--accent); color:#4aa8ff; }
   #receipt { display:none; }
   #receipt.show { display:block; position:fixed; inset:0; background:rgba(0,0,0,.6); padding:20px; z-index:200; overflow-y:auto; }
   .receipt-doc { background:#fff; color:#111; border-radius:12px; padding:24px; max-width:440px; margin:0 auto; }
@@ -192,9 +201,13 @@
 
   <!-- CUSTOMERS -->
   <section id="customers" class="view">
-    <div class="top"><h1>Customers</h1><button class="addbtn" onclick="editCustomer()">+</button></div>
-    <input class="search" id="custSearch" placeholder="Search" oninput="renderCustomers()">
+    <div class="top"><h1>Clients</h1><button class="addbtn" onclick="editCustomer()">+</button></div>
+    <div class="cust-stats" id="custStats"></div>
+    <input class="search" id="custSearch" placeholder="Search name, phone, or tag" oninput="renderCustomers()">
+    <div id="custControls"></div>
     <div id="custList"></div>
+    <div id="custFooter"></div>
+    <input type="file" id="clientCSV" accept=".csv,text/csv" style="display:none" onchange="importClientsCSV(this)">
   </section>
 
   <!-- BOOKINGS -->
@@ -316,7 +329,7 @@
 <nav class="tabbar">
   <button data-view="dashboard" class="active" onclick="go('dashboard')"><span class="ti">🏠</span>Home</button>
   <button data-view="bookings" onclick="go('bookings')"><span class="ti">📥</span>Bookings<span class="nav-badge" id="bkNavBadge"></span></button>
-  <button data-view="customers" onclick="go('customers')"><span class="ti">👥</span>Customers</button>
+  <button data-view="customers" onclick="go('customers')"><span class="ti">👥</span>Clients</button>
   <button data-view="schedule" onclick="go('schedule')"><span class="ti">🗓️</span>Schedule</button>
   <button data-view="reports" onclick="go('reports')"><span class="ti">📊</span>Reports</button>
   <button data-view="settings" onclick="go('settings')"><span class="ti">⚙️</span>Setup</button>
@@ -481,14 +494,73 @@ function apptRow(a){
 }
 
 // ================= Customers =================
+let custSort='name', custFilter='all';
+function setCustSort(v){ custSort=v; renderCustomers(); }
+function setCustFilter(v){ custFilter=v; renderCustomers(); }
+function custLastVisit(id){ const ds=appointments.filter(a=>a.customerId===id&&a.status==='completed').map(a=>a.datetime).sort(); return ds.length?ds[ds.length-1]:''; }
+function custNext(id){ const now=Date.now(); const ds=appointments.filter(a=>a.customerId===id&&(a.status==='scheduled'||a.status==='requested')&&new Date(a.datetime).getTime()>=now).map(a=>a.datetime).sort(); return ds.length?ds[0]:''; }
+function shortDate(dt){ return new Date(dt).toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
 function renderCustomers(){
   const q=(document.getElementById('custSearch').value||'').toLowerCase();
-  const list=customers.filter(c=>c.name.toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.tags||'').toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
-  document.getElementById('custList').innerHTML=list.length?list.map(c=>`
-    <div class="list-item" onclick="customerSheet('${c.id}')">
-      <div><div class="li-title">${c.name} ${c.vip?'<span class="pill vip">VIP</span>':''}</div><div class="li-sub">${c.phone||''}</div></div>
+  const total=customers.length, repeat=customers.filter(c=>custVisits(c.id)>=2).length, ltv=customers.reduce((s,c)=>s+custSpend(c.id),0);
+  document.getElementById('custStats').innerHTML=`<div><div class="n">${total}</div><div class="l">Clients</div></div><div><div class="n">${repeat}</div><div class="l">Repeat</div></div><div><div class="n green">${money(ltv)}</div><div class="l">Lifetime</div></div>`;
+  const sorts=[['name','Name A–Z'],['spend','Top spenders'],['recent','Recently served'],['visits','Most visits']];
+  const filters=[['all','All'],['vip','VIP'],['recurring','Recurring'],['new','New']];
+  document.getElementById('custControls').innerHTML=`<div class="cust-controls">
+    <select onchange="setCustSort(this.value)">${sorts.map(s=>`<option value="${s[0]}" ${custSort===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select>
+    <div class="chips">${filters.map(f=>`<button class="chip ${custFilter===f[0]?'on':''}" onclick="setCustFilter('${f[0]}')">${f[1]}</button>`).join('')}</div></div>`;
+  let list=customers.filter(c=>c.name.toLowerCase().includes(q)||(c.phone||'').includes(q)||(c.tags||'').toLowerCase().includes(q));
+  if(custFilter==='vip') list=list.filter(c=>c.vip);
+  else if(custFilter==='recurring') list=list.filter(c=>c.planName);
+  else if(custFilter==='new') list=list.filter(c=>custVisits(c.id)===0);
+  list.sort((a,b)=>{
+    if(custSort==='spend') return custSpend(b.id)-custSpend(a.id);
+    if(custSort==='visits') return custVisits(b.id)-custVisits(a.id);
+    if(custSort==='recent') return (custLastVisit(b.id)||'').localeCompare(custLastVisit(a.id)||'');
+    return a.name.localeCompare(b.name);
+  });
+  document.getElementById('custList').innerHTML=list.length?list.map(c=>{
+    const next=custNext(c.id), last=custLastVisit(c.id);
+    const tail=next?` · Next ${shortDate(next)}`:(last?` · Last ${shortDate(last)}`:'');
+    return `<div class="list-item" onclick="customerSheet('${c.id}')">
+      <div><div class="li-title">${c.name} ${c.vip?'<span class="pill vip">VIP</span>':''}</div><div class="li-sub">${c.phone||'No phone'}${tail}</div></div>
       <div class="li-right"><div class="li-title green">${money(custSpend(c.id))}</div><div class="li-sub">${custVisits(c.id)} visit${custVisits(c.id)===1?'':'s'}</div></div>
-    </div>`).join(''):`<div class="empty"><span class="ic">👥</span>No customers yet. Tap + to add one.</div>`;
+    </div>`;
+  }).join(''):`<div class="empty"><span class="ic">👥</span>No clients found.</div>`;
+  document.getElementById('custFooter').innerHTML=customers.length?`<div class="frow" style="margin-top:6px"><button class="btn ghost" onclick="exportClientsCSV()">⬇︎ Export CSV</button><button class="btn ghost" onclick="document.getElementById('clientCSV').click()">⬆︎ Import CSV</button></div>`:'';
+}
+function csvCell(v){ v=(v==null?'':String(v)); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }
+function exportClientsCSV(){
+  const cols=['Name','Phone','Email','Address','Vehicle','Tags','VIP','Plan','Frequency','PlanPrice','TotalSpent','Visits','Notes'];
+  const rows=customers.map(c=>[c.name,c.phone,c.email,c.address,c.vehicle,c.tags,c.vip?'Yes':'',c.planName,c.planFreq,c.planPrice,custSpend(c.id),custVisits(c.id),c.notes].map(csvCell).join(','));
+  const csv=cols.join(',')+'\n'+rows.join('\n');
+  const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='clients-'+todayStr()+'.csv'; a.click();
+}
+function parseCSV(text){
+  const rows=[]; let row=[], cell='', inQ=false;
+  for(let i=0;i<text.length;i++){ const ch=text[i];
+    if(inQ){ if(ch==='"'){ if(text[i+1]==='"'){cell+='"';i++;} else inQ=false; } else cell+=ch; }
+    else { if(ch==='"') inQ=true; else if(ch===','){ row.push(cell); cell=''; } else if(ch==='\n'||ch==='\r'){ if(ch==='\r'&&text[i+1]==='\n')i++; row.push(cell); rows.push(row); row=[]; cell=''; } else cell+=ch; } }
+  if(cell.length||row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r=>r.some(c=>c.trim()!==''));
+}
+function importClientsCSV(input){
+  const f=input.files[0]; if(!f)return; const r=new FileReader();
+  r.onload=()=>{ try{
+    const rows=parseCSV(r.result); if(rows.length<2){ alert('No rows found in that CSV.'); return; }
+    const header=rows[0].map(h=>h.trim().toLowerCase()); const idx=n=>header.indexOf(n);
+    const digits=s=>(s||'').replace(/\D/g,''); let added=0, updated=0;
+    for(let i=1;i<rows.length;i++){ const row=rows[i];
+      const get=n=>{ const j=idx(n); return j>=0?(row[j]||'').trim():''; };
+      const name=get('name')||(row[0]||'').trim(); if(!name) continue;
+      const phone=get('phone');
+      const data={ name, phone, email:get('email'), address:get('address'), vehicle:get('vehicle'), tags:get('tags'), vip:/^(yes|true|1)$/i.test(get('vip')), planName:get('plan'), planFreq:get('frequency'), planPrice:+get('planprice')||0, notes:get('notes') };
+      let c=phone?customers.find(x=>x.phone&&digits(x.phone)===digits(phone)):null;
+      if(c){ Object.assign(c,data); updated++; } else { customers.push({id:uid(),...data}); added++; }
+    }
+    persist(); renderAll(); alert(`Imported: ${added} new, ${updated} updated.`);
+  }catch(e){ alert('Could not read that CSV file.'); } };
+  r.readAsText(f); input.value='';
 }
 
 // ================= Schedule =================
