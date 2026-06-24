@@ -372,7 +372,7 @@ function persist(){
 }
 const CATALOG_VERSION = 3;
 function migrate(){
-  if(DB.get('catalogVersion',0) < CATALOG_VERSION){ services=defaultServices(); addons=defaultAddons(); DB.set('catalogVersion',CATALOG_VERSION); persist(); }
+  if(DB.get('catalogVersion',0) < CATALOG_VERSION){ addons=defaultAddons(); services=defaultServices(addons); DB.set('catalogVersion',CATALOG_VERSION); persist(); }
   if(biz){
     biz.profile = biz.profile || defaultProfile();
     if(biz.profile.about===undefined) biz.profile.about=biz.profile.bio||'';
@@ -386,19 +386,33 @@ function migrate(){
     persist();
   }
   if(portfolio===null){ portfolio=defaultPortfolio(); persist(); }
-  if(services){ let ch=false; services.forEach(s=>{ if(!Array.isArray(s.points)){ s.points=defaultPoints(s.name); ch=true; } }); if(ch) persist(); }
+  if(services){ let ch=false; services.forEach(s=>{
+    if(!Array.isArray(s.points)){ s.points=defaultPoints(s.name); ch=true; }
+    if(!s.prices){ const mn=s.priceMin||0, mx=s.priceMax||mn; s.prices={'Compact / Coupe':mn,'Medium-Sized Car':Math.round(mn+(mx-mn)/3),'SUV / Truck':Math.round(mn+2*(mx-mn)/3),'Large SUV / Van':mx}; ch=true; }
+    if(s.durMin===undefined){ s.durMin=s.duration||60; s.durMax=s.duration||60; ch=true; }
+    if(!Array.isArray(s.addonIds)){ s.addonIds=(addons||[]).map(a=>a.id); ch=true; }
+  }); if(ch) persist(); }
 }
 function defaultProfile(){ return { tagline:'Mobile detailing done right.', area:'Chagrin Falls & Greater Cleveland, OH', phone:'440-555-0100', email:'hello@scrubandsquish.com', about:'We bring premium auto detailing right to your driveway. Locally owned, fully insured, and obsessed with the details. Book online in under a minute.', zips:[] }; }
 function defaultHours(){ return [
   {open:false,start:'09:00',end:'17:00'},{open:true,start:'09:00',end:'17:00'},{open:true,start:'09:00',end:'17:00'},
   {open:true,start:'09:00',end:'17:00'},{open:true,start:'09:00',end:'17:00'},{open:true,start:'09:00',end:'17:00'},{open:true,start:'09:00',end:'15:00'} ]; }
-function defaultServices(){ return [
-  { id:uid(), name:'Full Car Detailing', priceMin:150, priceMax:250, duration:180, active:true, points:defaultPoints('Full Car Detailing') },
-  { id:uid(), name:'Basic Wash / Vacuum', priceMin:40, priceMax:70, duration:45, active:true, points:defaultPoints('Basic Wash / Vacuum') },
-  { id:uid(), name:'Interior Only Detail', priceMin:100, priceMax:160, duration:120, active:true, points:defaultPoints('Interior Only Detail') },
-  { id:uid(), name:'Full Exterior Only Detail', priceMin:90, priceMax:150, duration:100, active:true, points:defaultPoints('Full Exterior Only Detail') },
-  { id:uid(), name:'Basic Exterior Only Detail', priceMin:50, priceMax:80, duration:50, active:true, points:defaultPoints('Basic Exterior Only Detail') },
-  { id:uid(), name:'Basic Interior Only Detail', priceMin:60, priceMax:90, duration:60, active:true, points:defaultPoints('Basic Interior Only Detail') } ]; }
+function mkSvc(name,p,dmin,dmax,addonList,allowed){
+  const ids=(allowed||[]).map(n=>(addonList||[]).find(a=>a.name===n)).filter(Boolean).map(a=>a.id);
+  return { id:uid(), name, prices:{'Compact / Coupe':p[0],'Medium-Sized Car':p[1],'SUV / Truck':p[2],'Large SUV / Van':p[3]}, durMin:dmin, durMax:dmax, active:true, points:defaultPoints(name), addonIds:ids };
+}
+function defaultServices(addonList){
+  addonList = addonList || defaultAddons();
+  const ALL=['Wax Protection / Sealant','Pet Hair Removal','Heavy Stain Removal','Odor Treatment'];
+  return [
+    mkSvc('Full Car Detailing',        [150,175,200,250], 150,240, addonList, ALL),
+    mkSvc('Basic Wash / Vacuum',       [40,50,60,70],     30,60,  addonList, ['Pet Hair Removal','Odor Treatment']),
+    mkSvc('Interior Only Detail',      [100,120,140,160], 90,150, addonList, ['Pet Hair Removal','Heavy Stain Removal','Odor Treatment']),
+    mkSvc('Full Exterior Only Detail', [90,110,130,150],  80,120, addonList, ['Wax Protection / Sealant']),
+    mkSvc('Basic Exterior Only Detail',[50,60,70,80],     40,60,  addonList, ['Wax Protection / Sealant']),
+    mkSvc('Basic Interior Only Detail',[60,70,80,90],     50,75,  addonList, ['Pet Hair Removal','Heavy Stain Removal','Odor Treatment']),
+  ];
+}
 function defaultPoints(name){ const m={
   'Full Car Detailing':['Full interior deep clean','Exterior hand wash & wax','Wheels & tires detailed','Windows cleaned in & out'],
   'Basic Wash / Vacuum':['Exterior hand wash & dry','Interior vacuum','Windows cleaned','Tires dressed'],
@@ -420,7 +434,7 @@ function defaultPortfolio(){ return [
   { id:uid(), img:placeholderImg('Interior','#ff9f0a','#ff453a'), caption:'Interior detail' } ]; }
 function seed(){
   biz={ name:'Scrub & Squish', profile:defaultProfile(), taxRate:0, slotMins:60, hours:defaultHours(), staff:[], promos:[{id:uid(),code:'FIRST10',type:'percent',value:10,active:true}], reviews:defaultReviews() };
-  services=defaultServices(); addons=defaultAddons(); portfolio=defaultPortfolio();
+  addons=defaultAddons(); services=defaultServices(addons); portfolio=defaultPortfolio();
   customers=[
     { id:uid(), name:'Taryn Ponsky', phone:'440-773-2933', email:'tarynponsky@gmail.com', address:'37250 Fairmount Blvd, Chagrin Falls, OH 44022', vehicle:'2022 Rivian R1S', planName:'Full Car Detailing', planFreq:'Monthly', planPrice:200, notes:'', tags:'VIP', vip:true },
     { id:uid(), name:'Zac Ponsky', phone:'440-773-2938', email:'zac@email.com', address:'', vehicle:'2020 Toyota Tacoma', planName:'', planFreq:'', planPrice:0, notes:'', tags:'', vip:false } ];
@@ -454,7 +468,10 @@ function cust(id){ return customers.find(c=>c.id===id); }
 function custName(id){ const c=cust(id); return c?c.name:'— deleted —'; }
 function svcByName(n){ return services.find(s=>s.name===n); }
 function staffName(id){ const s=(biz.staff||[]).find(x=>x.id===id); return s?s.name:''; }
-function priceRange(s){ if(!s) return ''; return s.priceMin===s.priceMax?money(s.priceMin):money(s.priceMin)+'–'+money(s.priceMax); }
+function svcPrice(s,vtype){ if(!s) return 0; if(s.prices){ if(vtype&&s.prices[vtype]!=null&&s.prices[vtype]!=='') return +s.prices[vtype]; const vals=Object.values(s.prices).map(Number).filter(v=>!isNaN(v)); return vals.length?Math.min(...vals):0; } return s.priceMin||0; }
+function priceRange(s){ if(!s) return ''; const vals=s.prices?Object.values(s.prices).map(Number).filter(v=>!isNaN(v)):[(s.priceMin||0)]; if(!vals.length) return money(0); const mn=Math.min(...vals), mx=Math.max(...vals); return mn===mx?money(mn):money(mn)+'–'+money(mx); }
+function svcDur(s){ if(!s) return ''; const a=s.durMin??s.duration??0, b=s.durMax??s.duration??0; return a===b?a+' min':a+'–'+b+' min'; }
+function allowedAddons(s){ if(!s||!Array.isArray(s.addonIds)) return addons.filter(a=>a.active); return addons.filter(a=>a.active&&s.addonIds.includes(a.id)); }
 // money math
 function apptSubtotal(a){ return +a.price||0; }
 function apptDiscount(a){ return +a.discount||0; }
@@ -651,7 +668,7 @@ function renderSettings(){
   document.getElementById('p_phone').value=p.phone||''; document.getElementById('p_email').value=p.email||'';
   document.getElementById('p_about').value=p.about||''; document.getElementById('p_tax').value=biz.taxRate||0;
   document.getElementById('p_slot').value=biz.slotMins||60; document.getElementById('p_zips').value=(p.zips||[]).join(', ');
-  document.getElementById('svcList').innerHTML=services.map(s=>`<div class="list-item" onclick="editService('${s.id}')"><div><div class="li-title">${s.name}</div><div class="li-sub">${s.duration||0} min${s.active?'':' · inactive'}</div></div><div class="li-right"><div class="li-title">${priceRange(s)}</div></div></div>`).join('')||`<div class="empty">No services yet.</div>`;
+  document.getElementById('svcList').innerHTML=services.map(s=>`<div class="list-item" onclick="editService('${s.id}')"><div><div class="li-title">${s.name}</div><div class="li-sub">${svcDur(s)}${s.active?'':' · inactive'}</div></div><div class="li-right"><div class="li-title">${priceRange(s)}</div></div></div>`).join('')||`<div class="empty">No services yet.</div>`;
   document.getElementById('addonList').innerHTML=addons.map(a=>`<div class="list-item" onclick="editAddon('${a.id}')"><div><div class="li-title">${a.name}</div><div class="li-sub">${a.active?'active':'inactive'}</div></div><div class="li-right"><div class="li-title">${money(a.price)}</div></div></div>`).join('')||`<div class="empty">No add-ons yet.</div>`;
   document.getElementById('staffList').innerHTML=(biz.staff||[]).map(s=>`<div class="list-item" onclick="editStaff('${s.id}')"><div><div class="li-title">${s.name}</div><div class="li-sub">${s.active?'active':'inactive'}</div></div></div>`).join('')||`<div class="empty">No team members yet.</div>`;
   document.getElementById('promoList').innerHTML=(biz.promos||[]).map(pr=>`<div class="list-item" onclick="editPromo('${pr.id}')"><div><div class="li-title">${pr.code}</div><div class="li-sub">${pr.active?'active':'inactive'}</div></div><div class="li-right"><div class="li-title">${pr.type==='percent'?pr.value+'% off':money(pr.value)+' off'}</div></div></div>`).join('')||`<div class="empty">No promo codes.</div>`;
@@ -746,7 +763,7 @@ function apptSheet(id, presetCust){
     <h3>${id?'Edit':'New'} Appointment</h3>
     <label>Customer</label><select id="a_cust">${custOptions(a.customerId||presetCust)}</select>
     ${staffSel}
-    <label>Vehicle type</label><select id="a_vtype">${vtypeOptions(a.vehicleType)}</select>
+    <label>Vehicle type</label><select id="a_vtype" onchange="recalcPrice()">${vtypeOptions(a.vehicleType)}</select>
     <label>Date &amp; time</label><input id="a_dt" type="datetime-local" value="${dt}">
     <label>Service</label><select id="a_svc" onchange="recalcPrice()">${svcOptions(a.serviceName)}</select>
     <label>Add-ons</label><div id="a_addons">${addons.map(ad=>`<span class="addon-chip ${apptAddons.includes(ad.name)?'on':''}" onclick="toggleAddon('${esc(ad.name)}')">${ad.name} +${money(ad.price)}</span>`).join('')||'<span class="muted">No add-ons</span>'}</div>
@@ -761,7 +778,7 @@ function apptSheet(id, presetCust){
     <button class="btn danger" style="margin-top:10px" onclick="delAppt('${id}')">Delete Appointment</button>`:''}`);
   if(!id) recalcPrice();
 }
-function recalcPrice(){ const s=svcByName(val('a_svc')); let p=s?s.priceMin:0; apptAddons.forEach(n=>{ const ad=addons.find(x=>x.name===n); if(ad)p+=ad.price; }); document.getElementById('a_price').value=p; }
+function recalcPrice(){ const s=svcByName(val('a_svc')); let p=svcPrice(s, val('a_vtype')); apptAddons.forEach(n=>{ const ad=addons.find(x=>x.name===n); if(ad)p+=ad.price; }); document.getElementById('a_price').value=p; }
 function toggleAddon(name){ const i=apptAddons.indexOf(name); if(i>=0)apptAddons.splice(i,1); else apptAddons.push(name); document.querySelectorAll('#a_addons .addon-chip').forEach(c=>{ if(c.textContent.startsWith(name)) c.classList.toggle('on'); }); recalcPrice(); }
 function saveAppt(id){
   const d={ customerId:val('a_cust'), staffId:(document.getElementById('a_staff')?val('a_staff'):(id?appointments.find(x=>x.id===id)?.staffId:'')||''), vehicleType:val('a_vtype'), datetime:val('a_dt'), serviceName:val('a_svc'), addonNames:[...apptAddons], price:+val('a_price')||0, discount:+val('a_disc')||0, tip:+val('a_tip')||0, status:val('a_statusSel'), notes:val('a_notes') };
@@ -782,7 +799,7 @@ function icsStamp(d){ return d.getUTCFullYear()+pad(d.getUTCMonth()+1)+pad(d.get
 function downloadICS(id){
   const a=appointments.find(x=>x.id===id); if(!a) return;
   const c=cust(a.customerId), s=svcByName(a.serviceName);
-  const start=new Date(a.datetime), end=new Date(start.getTime()+((s?s.duration:60)*60000));
+  const start=new Date(a.datetime), end=new Date(start.getTime()+((s?(s.durMax||s.durMin||60):60)*60000));
   const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//ScrubSquish//EN','BEGIN:VEVENT',
     'UID:'+id+'@scrubsquish','DTSTAMP:'+icsStamp(new Date()),'DTSTART:'+icsStamp(start),'DTEND:'+icsStamp(end),
     'SUMMARY:'+(a.serviceName||'Detail')+' — '+(c?c.name:''),
@@ -798,12 +815,16 @@ let svcPoints=[];
 function editService(id){
   const s=id?services.find(x=>x.id===id):{active:true,points:[]};
   svcPoints=Array.isArray(s.points)?[...s.points]:[];
+  const pr=s.prices||{};
   openSheet(`<h3>${id?'Edit':'New'} Service</h3>
     <label>Name</label><input id="s_name" value="${esc(s.name)}">
-    <div class="frow"><div><label>Price from ($)</label><input id="s_pmin" type="number" value="${s.priceMin??''}"></div><div><label>Price to ($)</label><input id="s_pmax" type="number" value="${s.priceMax??''}"></div></div>
-    <label>Time to complete (minutes)</label><input id="s_dur" type="number" value="${s.duration||''}">
+    <label>Price by car size ($)</label>
+    ${VTYPES.map((v,i)=>`<div class="frow" style="align-items:center;margin-top:8px"><label style="margin:0;flex:1">${VICON[v]} ${v}</label><div style="flex:0 0 110px"><input id="s_p${i}" type="number" value="${pr[v]??''}" placeholder="0"></div></div>`).join('')}
+    <div class="frow" style="margin-top:14px"><div><label>Time min (min)</label><input id="s_dmin" type="number" value="${s.durMin??s.duration??''}"></div><div><label>Time max (min)</label><input id="s_dmax" type="number" value="${s.durMax??s.duration??''}"></div></div>
     <label>What's included (bullet points)</label><div id="s_points"></div>
     <button class="btn ghost sm" style="margin-top:8px" onclick="addSvcPoint()">+ Add point</button>
+    <label>Available add-ons for this package</label>
+    ${addons.length?addons.map(a=>`<div class="chk"><input type="checkbox" id="s_ad_${a.id}" ${(!s.addonIds||s.addonIds.includes(a.id))?'checked':''}><label style="margin:0">${a.name} (+${money(a.price)})</label></div>`).join(''):'<p class="muted" style="font-size:13px">No add-ons created yet.</p>'}
     <div class="chk"><input type="checkbox" id="s_active" ${s.active?'checked':''}><label style="margin:0">Show on booking page</label></div>
     <div class="sheet-actions"><button class="btn ghost" onclick="closeSheet()">Cancel</button><button class="btn" onclick="saveService('${id||''}')">Save</button></div>
     ${id?`<button class="btn danger" style="margin-top:10px" onclick="delService('${id}')">Delete</button>`:''}`);
@@ -813,8 +834,10 @@ function renderSvcPoints(){ const el=document.getElementById('s_points'); if(!el
 function addSvcPoint(){ svcPoints.push(''); renderSvcPoints(); const ins=document.querySelectorAll('#s_points input'); if(ins.length) ins[ins.length-1].focus(); }
 function removeSvcPoint(i){ svcPoints.splice(i,1); renderSvcPoints(); }
 function saveService(id){
-  const pmin=+val('s_pmin')||0; let pmax=+val('s_pmax')||pmin; if(pmax<pmin)pmax=pmin;
-  const d={ name:val('s_name').trim(), priceMin:pmin, priceMax:pmax, duration:+val('s_dur')||0, points:svcPoints.map(p=>(p||'').trim()).filter(Boolean), active:document.getElementById('s_active').checked };
+  const prices={}; VTYPES.forEach((v,i)=>{ prices[v]=+val('s_p'+i)||0; });
+  let dmin=+val('s_dmin')||0, dmax=+val('s_dmax')||dmin; if(dmax<dmin) dmax=dmin;
+  const addonIds=addons.filter(a=>{ const el=document.getElementById('s_ad_'+a.id); return el&&el.checked; }).map(a=>a.id);
+  const d={ name:val('s_name').trim(), prices, durMin:dmin, durMax:dmax, points:svcPoints.map(p=>(p||'').trim()).filter(Boolean), addonIds, active:document.getElementById('s_active').checked };
   if(!d.name){ alert('Name required'); return; }
   if(id){ Object.assign(services.find(x=>x.id===id),d); } else { services.push({id:uid(),...d}); }
   persist(); closeSheet(); renderAll();
@@ -928,7 +951,7 @@ function renderPubPortfolio(){ document.getElementById('pubPortfolio').innerHTML
 function renderPubReviews(){ const r=biz.reviews||[]; document.getElementById('pubReviews').innerHTML=r.length?r.map(rv=>`<div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><strong>${rv.name}</strong><span class="stars">${stars(rv.rating)}</span></div><p style="margin-top:8px;color:#d0d3d8">${rv.text||''}</p></div>`).join(''):`<div class="empty"><span class="ic">⭐</span>No reviews yet.</div>`; }
 function renderPubAbout(){
   const p=biz.profile||{};
-  const menu=services.filter(s=>s.active).map(s=>`<div class="menu-row"><div><div class="mn">${s.name}</div><div class="md">${s.duration} min</div>${(s.points&&s.points.length)?`<ul class="opt-points">${s.points.map(pt=>`<li>${pt}</li>`).join('')}</ul>`:''}</div><div style="font-weight:700;white-space:nowrap">${priceRange(s)}</div></div>`).join('');
+  const menu=services.filter(s=>s.active).map(s=>`<div class="menu-row"><div><div class="mn">${s.name}</div><div class="md">${svcDur(s)}</div>${(s.points&&s.points.length)?`<ul class="opt-points">${s.points.map(pt=>`<li>${pt}</li>`).join('')}</ul>`:''}</div><div style="font-weight:700;white-space:nowrap">${priceRange(s)}</div></div>`).join('');
   document.getElementById('pubAbout').innerHTML=`
     <div class="card"><h3>About ${biz.name}</h3><p style="margin-top:8px;color:#d0d3d8">${p.about||'—'}</p></div>
     <div class="card"><h3>Services &amp; Pricing</h3><div style="margin-top:6px">${menu||'<p class="muted">No services listed.</p>'}</div></div>
@@ -942,9 +965,9 @@ function renderPubAbout(){
 let bk=null;
 function startBooking(container){ bk={ step:0, vtype:null, service:null, addons:[], date:todayStr(), dt:'', name:'', phone:'', email:'', vehicle:'', zip:'', promo:'', discount:0, container }; renderBooking(); }
 function bookingService(){ return svcByName(bk.service); }
-function bookingSub(which){ const s=bookingService(); let b=s?(which==='max'?s.priceMax:s.priceMin):0; bk.addons.forEach(n=>{const a=addons.find(x=>x.name===n);if(a)b+=a.price;}); return b; }
+function bookingSub(){ const s=bookingService(); let b=svcPrice(s, bk.vtype); bk.addons.forEach(n=>{const a=addons.find(x=>x.name===n);if(a)b+=a.price;}); return b; }
 function promoDiscount(sub){ const p=(biz.promos||[]).find(x=>x.active&&x.code.toLowerCase()===(bk.promo||'').trim().toLowerCase()); if(!p)return 0; return p.type==='percent'?Math.round(sub*p.value/100):Math.min(sub,p.value); }
-function bkPick(field,v){ bk[field]=v; renderBooking(); }
+function bkPick(field,v){ bk[field]=v; if(field==='service'){ const allowed=allowedAddons(svcByName(v)).map(a=>a.name); bk.addons=bk.addons.filter(n=>allowed.includes(n)); } renderBooking(); }
 function bkToggle(name){ const i=bk.addons.indexOf(name); if(i>=0)bk.addons.splice(i,1); else bk.addons.push(name); renderBooking(); }
 function bkBack(){ if(bk.step>0){ bk.step--; renderBooking(); } }
 function bkSlot(t){ bk.dt=bk.date+'T'+t; renderBooking(); }
@@ -966,10 +989,10 @@ function renderBooking(){
   if(bk.step===0){
     body=`<h3>What kind of car do you have?</h3>`+VTYPES.map(v=>`<div class="opt ${bk.vtype===v?'on':''}" onclick="bkPick('vtype','${v}')"><div class="t"><span class="vicon">${VICON[v]||'🚗'}</span>${v}</div></div>`).join('');
   } else if(bk.step===1){
-    body=`<h3>Choose a service</h3>`+services.filter(s=>s.active).map(s=>`<div class="opt svc ${bk.service===s.name?'on':''}" onclick="bkPick('service','${esc(s.name).replace(/'/g,"\\'")}')"><div><div class="t">${s.name}</div><div class="s">${s.duration} min</div>${(s.points&&s.points.length)?`<ul class="opt-points">${s.points.map(p=>`<li>${p}</li>`).join('')}</ul>`:''}</div><div class="p">${priceRange(s)}</div></div>`).join('');
+    body=`<h3>Choose a service <span class="muted" style="font-weight:400;font-size:14px">· ${bk.vtype}</span></h3>`+services.filter(s=>s.active).map(s=>`<div class="opt svc ${bk.service===s.name?'on':''}" onclick="bkPick('service','${esc(s.name).replace(/'/g,"\\'")}')"><div><div class="t">${s.name}</div><div class="s">${svcDur(s)}</div>${(s.points&&s.points.length)?`<ul class="opt-points">${s.points.map(p=>`<li>${p}</li>`).join('')}</ul>`:''}</div><div class="p">${money(svcPrice(s,bk.vtype))}</div></div>`).join('');
   } else if(bk.step===2){
-    const act=addons.filter(a=>a.active);
-    body=`<h3>Add-ons <span class="muted" style="font-weight:400;font-size:14px">(optional)</span></h3>`+(act.length?act.map(a=>`<div class="opt ${bk.addons.includes(a.name)?'on':''}" onclick="bkToggle('${esc(a.name).replace(/'/g,"\\'")}')"><div class="t">${a.name}</div><div class="p">+${money(a.price)}</div></div>`).join(''):'<p class="muted">No add-ons available.</p>');
+    const act=allowedAddons(bookingService());
+    body=`<h3>Add-ons <span class="muted" style="font-weight:400;font-size:14px">(optional)</span></h3>`+(act.length?act.map(a=>`<div class="opt ${bk.addons.includes(a.name)?'on':''}" onclick="bkToggle('${esc(a.name).replace(/'/g,"\\'")}')"><div class="t">${a.name}</div><div class="p">+${money(a.price)}</div></div>`).join(''):'<p class="muted">No add-ons available for this package.</p>');
   } else if(bk.step===3){
     const slots=slotsForDate(bk.date);
     body=`<h3>Pick a date &amp; time</h3><label>Date</label><input id="bk_date" type="date" min="${todayStr()}" value="${bk.date}" onchange="bk.date=this.value;bk.dt='';renderBooking()">
@@ -983,7 +1006,7 @@ function renderBooking(){
       ${zips.length?`<label>ZIP code</label><input id="bk_zip" value="${esc(bk.zip)}" inputmode="numeric" oninput="bk.zip=this.value">`:''}
       <label>Promo code <span class="muted" style="font-weight:400">(optional)</span></label><input id="bk_promo" value="${esc(bk.promo)}" placeholder="FIRST10" style="text-transform:uppercase" oninput="bk.promo=this.value" onblur="renderBooking()">`;
   } else if(bk.step===5){
-    const sub=bookingSub('min'), disc=promoDiscount(sub);
+    const sub=bookingSub(), disc=promoDiscount(sub);
     body=`<h3>Confirm your booking</h3>
       <div class="detail-row"><div class="k">Vehicle</div><div class="v">${bk.vtype}${bk.vehicle?' · '+bk.vehicle:''}</div></div>
       <div class="detail-row"><div class="k">Service</div><div class="v">${bk.service}</div></div>
@@ -993,9 +1016,8 @@ function renderBooking(){
       <div class="detail-row"><div class="k">Contact</div><div class="v">${[bk.phone,bk.email].filter(Boolean).join(' · ')||'—'}</div></div>
       ${disc?`<div class="detail-row"><div class="k">Promo ${bk.promo.toUpperCase()}</div><div class="v green">−${money(disc)}</div></div>`:''}`;
   }
-  const sub=bookingSub('min'), subMax=bookingSub('max'), disc=promoDiscount(sub), discMax=promoDiscount(subMax);
-  const lo=sub-disc, hi=subMax-discMax;
-  const totalBar=(bk.step>=1&&bk.service)?`<div class="total-bar"><span class="muted">Estimated total</span><span class="tt green">${lo===hi?money(lo):money(lo)+'–'+money(hi)}</span></div>`:'';
+  const sub=bookingSub(), disc=promoDiscount(sub), total=sub-disc;
+  const totalBar=(bk.step>=1&&bk.service)?`<div class="total-bar"><span class="muted">Total · ${bk.vtype||''}</span><span class="tt green">${money(total)}</span></div>`:'';
   let nav;
   if(bk.step<5){ nav=`<div class="sheet-actions">${bk.step>0?`<button class="btn ghost" onclick="bkBack()">Back</button>`:''}<button class="btn" onclick="bkNext()">${bk.step===4?'Review':'Continue'}</button></div>`; }
   else { nav=`<div class="sheet-actions"><button class="btn ghost" onclick="bkBack()">Back</button><button class="btn green" onclick="bkConfirm()">Confirm booking</button></div>`; }
@@ -1013,13 +1035,13 @@ function bkConfirm(){
   const digits=s=>(s||'').replace(/\D/g,'');
   let c=customers.find(x=>x.phone&&bk.phone&&digits(x.phone)===digits(bk.phone));
   if(!c){ c={ id:uid(), name:bk.name.trim(), phone:bk.phone.trim(), email:bk.email.trim(), address:bk.zip?('ZIP '+bk.zip.trim()):'', vehicle:(bk.vehicle.trim()||bk.vtype), planName:'', planFreq:'', planPrice:0, notes:'Added via booking link', tags:'', vip:false }; customers.push(c); }
-  const sub=bookingSub('min'), disc=promoDiscount(sub);
+  const sub=bookingSub(), disc=promoDiscount(sub);
   const appt={ id:uid(), customerId:c.id, vehicleType:bk.vtype, datetime:bk.dt, serviceName:bk.service, addonNames:[...bk.addons], price:sub, discount:disc, tip:0, status:'requested', source:'booking', reminderSent:false, notes:bk.promo?('Promo: '+bk.promo.toUpperCase()):'' };
   appointments.push(appt); persist();
   const lo=sub-disc;
   const html=`<div style="text-align:center;padding:24px 6px"><div style="font-size:54px">✅</div><h3 style="margin:10px 0">Request received!</h3>
     <p class="muted">${fmtDate(appt.datetime)} at ${fmtTime(appt.datetime)}</p>
-    <p style="margin-top:6px">${appt.serviceName} — <span class="green" style="font-weight:700">~${money(lo)}</span></p>
+    <p style="margin-top:6px">${appt.serviceName} · ${appt.vehicleType} — <span class="green" style="font-weight:700">${money(lo)}</span></p>
     <p class="muted" style="margin-top:14px;font-size:14px">${biz.name} will review and confirm your appointment${bk.email?'. Updates will be sent to '+bk.email:''}.</p>
     <button class="btn" style="margin-top:18px;width:auto;padding:12px 22px" onclick="startBooking(bk.container)">Book another</button></div>`;
   if(bk.container&&bk.container.id==='pubBooking'){ bk.container.innerHTML=html; } else { sheet.innerHTML='<div class="grabber"></div>'+html; }
