@@ -187,6 +187,25 @@
     #receipt { display:block !important; position:absolute; inset:0; background:#fff; padding:20px; }
     .no-print { display:none !important; }
   }
+  /* Detail Assistant (AI) */
+  nav.tabbar button { font-size:8px; padding:4px 1px; }
+  nav.tabbar button .ti { font-size:17px; }
+  #assistant { display:none; }
+  #assistant.active { display:flex; flex-direction:column; height:calc(100vh - 104px); }
+  .chat-scroll { flex:1; overflow-y:auto; padding:6px 2px 10px; }
+  .msg { max-width:84%; padding:11px 14px; border-radius:16px; margin-bottom:10px; font-size:15px; line-height:1.45; }
+  .msg.bot { background:var(--panel); border-top-left-radius:5px; }
+  .msg.user { background:var(--accent); color:#fff; margin-left:auto; border-top-right-radius:5px; }
+  .msg b { font-weight:700; }
+  .chat-suggest { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .chat-suggest button { background:var(--panel-2); border:1px solid var(--border); color:var(--accent); border-radius:18px; padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer; }
+  .chat-input { display:flex; gap:8px; padding:8px 0 2px; border-top:1px solid var(--border); }
+  .chat-input input { flex:1; }
+  .chat-input button { width:auto; padding:12px 18px; }
+  .ai-badge { display:inline-block; background:linear-gradient(135deg,var(--accent),#6c4cff); color:#fff; font-size:10px; font-weight:800; padding:2px 8px; border-radius:10px; vertical-align:middle; margin-left:8px; }
+  .bk-ai-result { background:var(--panel-2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-top:12px; font-size:15px; }
+  .bk-manual { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+  .bk-manual button { flex:1; min-width:120px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:10px; font-size:13px; font-weight:600; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -317,6 +336,17 @@
     </div>
   </section>
 
+  <!-- DETAIL ASSISTANT (AI) -->
+  <section id="assistant" class="view">
+    <div class="top" style="margin-bottom:6px"><h1>Detail Assistant <span class="ai-badge">AI</span></h1></div>
+    <div class="chat-scroll" id="chatScroll"></div>
+    <div class="chat-suggest" id="chatSuggest"></div>
+    <div class="chat-input">
+      <input id="chatBox" placeholder="Ask me anything…" onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn" onclick="sendChat()">Send</button>
+    </div>
+  </section>
+
   <!-- PUBLIC BOOKING PAGE -->
   <section id="publicView" class="view">
     <div class="biz-hero">
@@ -346,6 +376,7 @@
   <button data-view="schedule" onclick="go('schedule')"><span class="ti">🗓️</span>Schedule</button>
   <button data-view="invoices" onclick="go('invoices')"><span class="ti">🧾</span>Invoices</button>
   <button data-view="reports" onclick="go('reports')"><span class="ti">📊</span>Reports</button>
+  <button data-view="assistant" onclick="go('assistant')"><span class="ti">🤖</span>Assistant</button>
   <button data-view="settings" onclick="go('settings')"><span class="ti">⚙️</span>Setup</button>
 </nav>
 
@@ -681,7 +712,7 @@ function renderSettings(){
 }
 function stars(n){ n=+n||0; return '★'.repeat(n)+'☆'.repeat(5-n); }
 
-function renderAll(){ renderDashboard(); renderBookings(); renderCustomers(); renderSchedule(); renderInvoices(); renderReports(); renderSettings(); }
+function renderAll(){ renderDashboard(); renderBookings(); renderCustomers(); renderSchedule(); renderInvoices(); renderReports(); renderSettings(); renderAssistant(); }
 
 // ================= Sheet helpers =================
 const sheetBg=document.getElementById('sheetBg'), sheet=document.getElementById('sheet');
@@ -980,7 +1011,7 @@ function renderPubAbout(){
 
 // ================= Booking flow =================
 let bk=null;
-function startBooking(container){ bk={ step:0, vtype:null, service:null, addons:[], date:todayStr(), dt:'', name:'', phone:'', email:'', vehicle:'', zip:'', promo:'', discount:0, container }; renderBooking(); }
+function startBooking(container){ bk={ step:0, carText:'', vtype:null, service:null, addons:[], date:todayStr(), dt:'', name:'', phone:'', email:'', vehicle:'', zip:'', promo:'', discount:0, container }; renderBooking(); }
 function bookingService(){ return svcByName(bk.service); }
 function bookingSub(){ const s=bookingService(); let b=svcPrice(s, bk.vtype); bk.addons.forEach(n=>{const a=addons.find(x=>x.name===n);if(a)b+=a.price;}); return b; }
 function promoDiscount(sub){ const p=(biz.promos||[]).find(x=>x.active&&x.code.toLowerCase()===(bk.promo||'').trim().toLowerCase()); if(!p)return 0; return p.type==='percent'?Math.round(sub*p.value/100):Math.min(sub,p.value); }
@@ -1004,7 +1035,13 @@ function renderBooking(){
   const dots=`<div class="step-dots">${[0,1,2,3,4,5].map(i=>`<i class="${i<=bk.step?'on':''}"></i>`).join('')}</div>`;
   let body='';
   if(bk.step===0){
-    body=`<h3>What kind of car do you have?</h3>`+VTYPES.map(v=>`<div class="opt ${bk.vtype===v?'on':''}" onclick="bkPick('vtype','${v}')"><div class="t"><span class="vicon">${VICON[v]||'🚗'}</span>${v}</div></div>`).join('');
+    body=`<h3>What car do you have? <span class="ai-badge">AI</span></h3>
+      <p class="muted" style="font-size:14px;margin-bottom:8px">Type your year, make &amp; model — our assistant sizes it up for accurate pricing.</p>
+      <input id="bk_carText" placeholder="e.g. 2022 Toyota Sienna" value="${esc(bk.carText||'')}" oninput="bk.carText=this.value" onkeydown="if(event.key==='Enter'){event.preventDefault();bkClassify();}">
+      <button class="btn" style="margin-top:10px" onclick="bkClassify()">Analyze my car</button>
+      ${bk.vtype?`<div class="bk-ai-result">✓ Sized as <b>${bk.vtype}</b>${bk.carText?` — ${esc(bk.carText)}`:''}<br><span class="muted" style="font-size:13px">Not right? Pick manually below.</span></div>`:''}
+      <p class="muted" style="font-size:13px;margin-top:12px">Or choose your size:</p>
+      <div class="bk-manual">${VTYPES.map(v=>`<button onclick="bkManualSize('${v}')" ${bk.vtype===v?'style="border-color:var(--accent);color:#4aa8ff"':''}>${VICON[v]} ${v}</button>`).join('')}</div>`;
   } else if(bk.step===1){
     body=`<h3>Choose a service <span class="muted" style="font-weight:400;font-size:14px">· ${bk.vtype}</span></h3>`+services.filter(s=>s.active).map(s=>`<div class="opt svc ${bk.service===s.name?'on':''}" onclick="bkPick('service','${esc(s.name).replace(/'/g,"\\'")}')"><div><div class="t">${s.name}</div><div class="s">${svcDur(s)}</div>${(s.points&&s.points.length)?`<ul class="opt-points">${s.points.map(p=>`<li>${p}</li>`).join('')}</ul>`:''}</div><div class="p">${money(svcPrice(s,bk.vtype))}</div></div>`).join('');
   } else if(bk.step===2){
@@ -1275,6 +1312,87 @@ function invCard(a){
     <button class="btn" style="margin-top:10px" onclick="shareAppt('${a.id}')">📤 Send invoice</button></div>`;
 }
 function togglePaid(id){ const a=appointments.find(x=>x.id===id); if(!a)return; a.paid=!a.paid; persist(); renderAll(); }
+
+// ================= Detail Assistant (AI) =================
+function classifyCar(text){
+  const t=' '+(text||'').toLowerCase()+' ';
+  const has=(...ws)=>ws.some(w=>t.includes(w));
+  if(has('suburban','tahoe','yukon','expedition','escalade','navigator','sequoia','armada','wagoneer','sienna','odyssey','pacifica','carnival','quest','transit','sprinter','promaster','metris','minivan',' van ','3-row','3 row','three row','model x','ev9','r1s','full-size','full size','telluride','palisade','atlas','traverse','enclave','acadia','durango','grand wagoneer'))
+    return {size:'Large SUV / Van', why:'a large SUV or van'};
+  if(has('truck','pickup','f-150','f150','f-250','f250','f-350','silverado','sierra',' ram ','1500','2500','3500','tacoma','tundra','ranger','colorado','canyon','frontier','ridgeline','maverick','titan','gladiator','suv','rav4','cr-v','crv','cx-5','cx5','cx-50','rogue','escape','equinox','tucson','sportage','forester','outback','cherokee','wrangler','bronco','4runner','pilot','highlander','explorer','blazer','edge','murano','santa fe','sorento','model y','id.4','mach-e','ioniq 5','ev6','crosstrek','hr-v','venza','kona','seltos','trailblazer'))
+    return {size:'SUV / Truck', why:'an SUV or truck'};
+  if(has('coupe','2-door','2 door','two door','hatchback','miata','mx-5','brz','gr86',' 86 ','mustang','camaro','challenger','corvette','supra','mini cooper',' mini ',' fit ','yaris','spark','fiesta','fiat 500','smart car','veloster','gti','civic si','civic coupe','wrx'))
+    return {size:'Compact / Coupe', why:'a compact car or coupe'};
+  if(has('sedan','accord','camry','altima','maxima','sonata','elantra','jetta','passat','malibu','impala','fusion','charger','chrysler 300',' 300 ','model 3','civic','corolla','sentra','legacy','mazda3','mazda 3',' k5 ','stinger','arteon','a4','a6','3 series','5 series','c-class','e-class',' es ',' is ','tlx','ilx','giulia','genesis','taurus'))
+    return {size:'Medium-Sized Car', why:'a mid-size car'};
+  return {size:'Medium-Sized Car', why:"I couldn't pin down the size, so I assumed mid-size — adjust if needed"};
+}
+function aiMatchService(t){ t=t.toLowerCase();
+  let s=services.find(x=>t.includes(x.name.toLowerCase())); if(s) return s;
+  if(/\bfull car|full detail|complete detail|the works|full interior and exterior\b/.test(t)) return svcByName('Full Car Detailing');
+  if(/wash|vacuum|maintenance/.test(t)) return svcByName('Basic Wash / Vacuum');
+  if(/interior/.test(t)) return /basic|quick/.test(t)?svcByName('Basic Interior Only Detail'):svcByName('Interior Only Detail');
+  if(/exterior/.test(t)) return /basic|quick/.test(t)?svcByName('Basic Exterior Only Detail'):svcByName('Full Exterior Only Detail');
+  return null;
+}
+function aiMatchAddons(t){ t=t.toLowerCase(); return addons.filter(a=>{ const n=a.name.toLowerCase(); if(t.includes(n)) return true; if(n.includes('pet')&&/pet|hair|dog|cat|fur/.test(t)) return true; if(n.includes('wax')&&/wax|sealant|ceramic|protect|shine/.test(t)) return true; if(n.includes('stain')&&/stain|spill|shampoo/.test(t)) return true; if(n.includes('odor')&&/odor|smell|smoke|febreze/.test(t)) return true; return false; }); }
+function priceAnswer(t){
+  const car=classifyCar(t), svc=aiMatchService(t), ads=aiMatchAddons(t);
+  if(!svc){
+    const lines=services.filter(s=>s.active).map(s=>`• ${s.name}: <b>${money(svcPrice(s,car.size))}</b>`).join('<br>');
+    return `I read that as <b>${car.size}</b> (${car.why}). Here's your pricing for that size:<br>${lines}<br><br>Tell me which service (and any add-ons) and I'll total it up.`;
+  }
+  let total=svcPrice(svc,car.size), adLines='';
+  ads.forEach(a=>{ total+=a.price; adLines+=`<br>• ${a.name}: +${money(a.price)}`; });
+  return `For a <b>${car.size}</b> getting <b>${svc.name}</b>:<br>• ${svc.name}: ${money(svcPrice(svc,car.size))}${adLines}<br><br><b>Recommended charge: ~${money(total)}</b><br><span class="muted">${svcDur(svc)} · sized as ${car.why}</span>`;
+}
+function dataAnswer(t){ t=t.toLowerCase(); const cm=todayStr().slice(0,7);
+  if(/outstanding|unpaid|owed|owe me|balance/.test(t)){ const inv=appointments.filter(a=>a.status==='completed'&&!a.paid); return `You have <b>${inv.length}</b> unpaid invoice(s) totaling <b>${money(inv.reduce((s,a)=>s+apptTotal(a),0))}</b>.`; }
+  if(/profit/.test(t)) return `${monthName(cm)} profit is <b>${money(monthRevenue(cm)-monthExpenses(cm))}</b> (revenue − expenses).`;
+  if(/revenue|made|earn|income|sales|gross/.test(t)) return `${monthName(cm)} revenue so far is <b>${money(monthRevenue(cm))}</b>.`;
+  if(/expense|spent|costs/.test(t)) return `${monthName(cm)} expenses total <b>${money(monthExpenses(cm))}</b>.`;
+  if(/how many (customers|clients)|client count|number of (customers|clients)/.test(t)) return `You have <b>${customers.length}</b> clients.`;
+  if(/top (customer|client)|best (customer|client)|biggest spender|vip/.test(t)){ const top=[...customers].map(c=>({c,s:custSpend(c.id)})).sort((a,b)=>b.s-a.s)[0]; return top&&top.s?`Your top client is <b>${top.c.name}</b> — <b>${money(top.s)}</b> lifetime.`:'No client revenue recorded yet.'; }
+  if(/today|today'?s schedule|on today/.test(t)){ const tod=appointments.filter(a=>a.datetime.slice(0,10)===todayStr()&&confirmedAppt(a)).sort((a,b)=>a.datetime.localeCompare(b.datetime)); return tod.length?`You have <b>${tod.length}</b> job(s) today:<br>${tod.map(a=>`• ${fmtTime(a.datetime)} — ${custName(a.customerId)} (${a.serviceName})`).join('<br>')}`:'Nothing scheduled today.'; }
+  if(/request|pending|to approve/.test(t)){ const r=appointments.filter(a=>a.status==='requested'); return `You have <b>${r.length}</b> pending booking request(s).`; }
+  if(/how many (jobs|details|appointments)|jobs this month|completed/.test(t)){ const n=appointments.filter(a=>a.status==='completed'&&inMonth(a.datetime,cm)).length; return `You've completed <b>${n}</b> job(s) in ${monthName(cm)}.`; }
+  if(/average ticket|avg ticket|average (job|sale|price)/.test(t)){ const done=appointments.filter(a=>a.status==='completed'&&inMonth(a.datetime,cm)); return `Average ticket this month: <b>${money(done.length?monthRevenue(cm)/done.length:0)}</b>.`; }
+  if(/busiest/.test(t)){ const d=[0,0,0,0,0,0,0]; appointments.filter(a=>a.status!=='cancelled').forEach(a=>d[new Date(a.datetime).getDay()]++); let mi=0; d.forEach((v,i)=>{if(v>d[mi])mi=i;}); return `Your busiest day is <b>${DOW[mi]}</b>.`; }
+  return null;
+}
+function faqAnswer(t){ t=t.toLowerCase();
+  if(/how often.*(detail|wash)/.test(t)) return 'Most vehicles do well with a full detail every 4–6 months and a basic wash every couple weeks. Pets, kids, or daily highway driving push that more often.';
+  if(/clay bar/.test(t)) return 'A clay bar pulls bonded contaminants (overspray, sap, fallout) off the paint after washing — do it before wax or sealant for a glass-smooth finish.';
+  if(/ceramic/.test(t)) return 'Ceramic coatings bond to the clear coat for 1–5 years of protection and strong water beading. Prep (decon + polish) is what makes them last.';
+  if(/pet hair/.test(t)) return 'Pet hair: a rubber pet-hair brush or pumice stone in short strokes lifts it, then vacuum. A slightly damp nitrile glove grabs the stubborn stuff.';
+  if(/water spot/.test(t)) return 'Water spots are mineral deposits — a 50/50 white-vinegar/water mix or a water-spot remover usually clears them; etched spots may need light polishing.';
+  if(/upsell|sell more|increase revenue/.test(t)) return 'Easy upsells: offer ceramic/sealant on every full detail, pet-hair removal for pet owners, and a recurring monthly maintenance plan — recurring clients smooth out your revenue.';
+  return null;
+}
+function assistantReply(text){
+  const t=(text||'').trim(); if(!t) return 'Ask me to price a job, or about your revenue, clients, or schedule.';
+  const hasCar=/\b(19|20)\d{2}\b|honda|toyota|ford|chevy|chevrolet|jeep|tesla|bmw|audi|nissan|kia|hyundai|gmc|ram|dodge|subaru|mazda|lexus|acura|cadillac|buick|volkswagen|vw|mercedes|truck|suv|sedan|minivan|\bvan\b|coupe|hatchback/i.test(t);
+  const priceWords=/charge|price|pricing|quote|cost|how much|estimate|rate/i.test(t);
+  if(priceWords||hasCar){ if(!hasCar){ const d=dataAnswer(t); if(d) return d; } return priceAnswer(t); }
+  const d=dataAnswer(t); if(d) return d;
+  const f=faqAnswer(t); if(f) return f;
+  return `I'm your Detail Assistant. Right now I can:<br>• <b>Price a job</b> — e.g. "How much for a 2021 F-150 full detail with pet hair removal?"<br>• Answer about your <b>revenue, profit, expenses, clients, schedule &amp; unpaid invoices</b><br>• Share <b>detailing tips</b><br><br><span class="muted">Open-ended web questions need me connected to an AI service — that's the backend upgrade we can add next.</span>`;
+}
+let chat=[];
+function renderAssistant(){
+  const sc=document.getElementById('chatScroll'); if(!sc) return;
+  if(!chat.length){ chat.push({role:'bot', html:`Hey! I'm your Detail Assistant 🤖<br>Try: <b>"How much should I charge for a 2022 Tahoe full detail with wax?"</b> — or ask about today's schedule, revenue, or unpaid invoices.`}); }
+  sc.innerHTML=chat.map(m=>`<div class="msg ${m.role}">${m.html}</div>`).join('');
+  sc.scrollTop=sc.scrollHeight;
+  const sug=['Price a 2021 F-150 full detail with pet hair','This month\'s revenue','Unpaid invoices','Who\'s my top client?'];
+  document.getElementById('chatSuggest').innerHTML=sug.map(s=>`<button onclick="quickChat('${s.replace(/'/g,"\\'")}')">${s}</button>`).join('');
+}
+function quickChat(q){ const b=document.getElementById('chatBox'); b.value=q; sendChat(); }
+function sendChat(){ const b=document.getElementById('chatBox'); const t=(b.value||'').trim(); if(!t) return; chat.push({role:'user',html:t.replace(/</g,'&lt;')}); chat.push({role:'bot',html:assistantReply(t)}); b.value=''; renderAssistant(); }
+
+// booking page AI car input
+function bkClassify(){ const t=(bk.carText||'').trim(); if(!t) return alert('Type your car first — year, make & model.'); const r=classifyCar(t); bk.vtype=r.size; bk.vehicle=t; renderBooking(); }
+function bkManualSize(v){ bk.vtype=v; renderBooking(); }
 
 // ================= Init =================
 loadAll(); renderAll();
