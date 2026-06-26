@@ -982,9 +982,7 @@ function renderPublic(){
   document.getElementById('pubName').textContent=biz.name;
   document.getElementById('pubTag').textContent=p.tagline||'';
   document.getElementById('pubMeta').innerHTML=[p.area,p.phone].filter(Boolean).join(' · ');
-  // Hide "Staff login" on the live customer booking site; keep it for the manager's preview.
-  const h=location.hostname, onBookingDomain=(h==='scrubandsquish.com'||h==='www.scrubandsquish.com'||h.indexOf('book.')===0);
-  const slr=document.getElementById('staffLoginRow'); if(slr) slr.style.display=onBookingDomain?'none':'block';
+  const slr=document.getElementById('staffLoginRow'); if(slr) slr.style.display='block';
   pubTab('book');
 }
 function pubTab(t){
