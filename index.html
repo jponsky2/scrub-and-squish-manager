@@ -1396,7 +1396,12 @@ function bkManualSize(v){ bk.vtype=v; renderBooking(); }
 
 // ================= Init =================
 loadAll(); renderAll();
-function isBookingSite(){ return location.hash==='#book' || /booking/i.test(location.pathname); }
+function isBookingSite(){
+  const h=location.hostname;
+  if(h==='app.scrubandsquish.com') return false;                 // manager site
+  if(h==='scrubandsquish.com'||h==='www.scrubandsquish.com'||h.indexOf('book.')===0) return true; // booking site
+  return location.hash==='#book' || /booking/i.test(location.pathname); // github.io paths / local
+}
 if(isBookingSite()){ showPublic(true); }
 window.addEventListener('hashchange',()=>{ showPublic(isBookingSite()); });
 </script>
